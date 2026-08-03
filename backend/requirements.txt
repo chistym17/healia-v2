@@ -12,5 +12,3 @@ requests
 tavily-python
 langchain-tavily
 gTTS
-aiortc  
-pipecat-ai[daily,silero,google,openai]

@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AudioProvider } from "@/context/AudioContext";
 import VoiceInputPage from "@/pages/VoiceInputPage";
 import ChatPage from "@/pages/ChatPage";
-import VoiceChat from "@/pages/VoiceChat";
 import Index from "./pages/Index";
 import Conversation from "./pages/Conversation";
 import StartConsultation from "./pages/StartConsultation";
@@ -27,7 +26,6 @@ const App = () => (
           <Route path="/" element={<Index />} />
             <Route path="/conversation" element={<VoiceInputPage />} />
             <Route path="/conversation/chat" element={<ChatPage />} />
-            <Route path="/voice-chat" element={<VoiceChat />} />
           <Route path="/consultation" element={<StartConsultation />} />
           <Route path="/features" element={<Features />} />
           <Route path="/about" element={<About />} />

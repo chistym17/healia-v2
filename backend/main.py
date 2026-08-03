@@ -1,15 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import os
 import assemblyai as aai
 import uvicorn
 from demo_router import router as demo_router
-from voice_router import router as voice_router, initialize_voice_bot, cleanup_voice_bot
-from rtvi_router import router as rtvi_router
-from conversation_router import router as conversation_router
 import logging
 
 from api.router import router as api_router
@@ -23,47 +19,24 @@ aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
 
 app = FastAPI(
     title="Healia - Voice-Powered AI Health Consultant",
-    description="A voice-powered AI health consultant with Pipecat integration",
+    description="A voice-powered AI health consultant",
     version="1.0.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include all routers
-app.include_router(api_router, prefix="/api", tags=["API"])
+# Include routers
+app.include_router(api_router, tags=["API"])
 app.include_router(demo_router, tags=["Demo"])
-app.include_router(voice_router, tags=["Voice Bot"])
-app.include_router(rtvi_router, tags=["RTVI"])
-app.include_router(conversation_router, tags=["Conversations"])
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="."), name="static")
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the application on startup"""
-    logger.info("Starting Healia backend...")
-    try:
-        await initialize_voice_bot()
-        logger.info("Voice bot initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize voice bot: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown"""
-    logger.info("Shutting down Healia backend...")
-    try:
-        await cleanup_voice_bot()
-        logger.info("Voice bot cleaned up successfully")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
 
 @app.get("/")
 async def root():
@@ -72,9 +45,6 @@ async def root():
         "message": "Healia - Voice-Powered AI Health Consultant",
         "version": "1.0.0",
         "endpoints": {
-            "voice_bot": "/voice/",
-            "voice_connect": "/voice/connect",
-            "voice_status": "/voice/status",
             "demo": "/api/demo",
             "docs": "/docs"
         }
