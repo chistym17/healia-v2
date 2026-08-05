@@ -9,6 +9,7 @@ from demo_router import router as demo_router
 import logging
 
 from api.router import router as api_router
+from api.livekit import router as livekit_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,7 @@ app.add_middleware(
 # Include routers
 app.include_router(api_router, tags=["API"])
 app.include_router(demo_router, tags=["Demo"])
+app.include_router(livekit_router)
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="."), name="static")
@@ -46,6 +48,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "demo": "/api/demo",
+            "livekit_token": "/api/livekit/token",
             "docs": "/docs"
         }
     }

@@ -12,3 +12,5 @@ requests
 tavily-python
 langchain-tavily
 gTTS
+livekit-agents[google]~=1.6
+livekit-api
