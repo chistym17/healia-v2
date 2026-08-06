@@ -6,7 +6,9 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from google.protobuf.json_format import ParseDict
 from livekit import api
+from livekit.protocol.room import RoomConfiguration
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/livekit", tags=["LiveKit"])
@@ -57,8 +59,10 @@ async def create_livekit_token(request: TokenRequest) -> TokenResponse:
         )
     )
 
+    # Frontend sends a JSON dict; AccessToken expects a protobuf RoomConfiguration.
     if request.room_config:
-        token = token.with_room_config(request.room_config)
+        room_config = ParseDict(request.room_config, RoomConfiguration())
+        token = token.with_room_config(room_config)
 
     return TokenResponse(
         server_url=livekit_url,

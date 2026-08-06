@@ -12,6 +12,7 @@ import StartConsultation from "./pages/StartConsultation";
 import Features from "./pages/Features";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import LiveVoicePage from "./pages/LiveVoicePage";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/conversation" element={<VoiceInputPage />} />
             <Route path="/conversation/chat" element={<ChatPage />} />
           <Route path="/consultation" element={<StartConsultation />} />
+          <Route path="/live-voice" element={<LiveVoicePage />} />
           <Route path="/features" element={<Features />} />
           <Route path="/about" element={<About />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
