@@ -1,6 +1,4 @@
-"""Healia LiveKit voice agent — Gemini realtime audio."""
-
-import logging
+import uuid
 
 from dotenv import load_dotenv
 from google.genai import types
@@ -9,15 +7,12 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext
 from livekit.plugins import google
 
 from livekit_agent import config
+from livekit_agent.events import log_event
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("healia-agent")
-
 
 def _speech_sensitivity(kind: str, value: str):
-    """Map config strings to google.genai sensitivity enums."""
     value = (value or "LOW").upper()
     if kind == "start":
         return (
@@ -63,8 +58,56 @@ def build_realtime_model() -> google.realtime.RealtimeModel:
 
 class HealiaAgent(Agent):
     def __init__(self) -> None:
-        # Instructions live on RealtimeModel via config — keep Agent minimal.
         super().__init__(instructions=config.INSTRUCTIONS)
+
+
+def _attach_voice_logs(session: AgentSession, session_id: str) -> None:
+    @session.on("agent_state_changed")
+    def _on_agent_state(ev) -> None:
+        log_event(
+            "VOICE",
+            "agent_state",
+            session_id=session_id,
+            detail=f"{ev.old_state}->{ev.new_state}",
+        )
+
+    @session.on("user_state_changed")
+    def _on_user_state(ev) -> None:
+        log_event(
+            "VOICE",
+            "user_state",
+            session_id=session_id,
+            detail=f"{ev.old_state}->{ev.new_state}",
+        )
+
+    @session.on("speech_created")
+    def _on_speech_created(ev) -> None:
+        source = getattr(ev, "source", None) or getattr(ev, "user_initiated", "unknown")
+        log_event(
+            "VOICE",
+            "speech_created",
+            session_id=session_id,
+            detail=f"source={source}",
+        )
+
+    @session.on("error")
+    def _on_error(ev) -> None:
+        log_event(
+            "VOICE",
+            "error",
+            session_id=session_id,
+            detail=str(getattr(ev, "error", ev)),
+        )
+
+    @session.on("close")
+    def _on_close(ev) -> None:
+        reason = getattr(ev, "reason", "")
+        log_event(
+            "VOICE",
+            "session_closed",
+            session_id=session_id,
+            detail=f"reason={reason}",
+        )
 
 
 server = AgentServer()
@@ -72,24 +115,41 @@ server = AgentServer()
 
 @server.rtc_session(agent_name=config.AGENT_NAME)
 async def healia_session(ctx: JobContext) -> None:
-    logger.info(
-        "Starting Healia session room=%s model=%s silence_ms=%s",
-        ctx.room.name,
-        config.MODEL,
-        config.SILENCE_DURATION_MS,
+    session_id = f"sess_{uuid.uuid4().hex[:8]}"
+    room_name = ctx.room.name
+
+    log_event(
+        "VOICE",
+        "session_start",
+        session_id=session_id,
+        detail=f"room={room_name} model={config.MODEL}",
     )
 
     await ctx.connect()
+    log_event("VOICE", "room_connected", session_id=session_id, detail=f"room={room_name}")
 
     session = AgentSession(llm=build_realtime_model())
+    _attach_voice_logs(session, session_id)
 
-    await session.start(
-        room=ctx.room,
-        agent=HealiaAgent(),
+    await session.start(room=ctx.room, agent=HealiaAgent())
+    log_event(
+        "VOICE",
+        "agent_ready",
+        session_id=session_id,
+        detail="reply_path=gemini_auto",
     )
 
+    # Part 1: only explicit reply initiation is the optional greeting.
+    # After that, Gemini Live answers user audio by itself (one auto path).
     if config.ENABLE_GREETING:
+        log_event(
+            "VOICE",
+            "greeting_requested",
+            session_id=session_id,
+            detail="via=generate_reply",
+        )
         await session.generate_reply(instructions=config.GREETING_INSTRUCTIONS)
+        log_event("VOICE", "greeting_done", session_id=session_id)
 
 
 if __name__ == "__main__":

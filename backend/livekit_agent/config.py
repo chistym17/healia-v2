@@ -12,7 +12,6 @@ TEMPERATURE = 0.7
 AGENT_NAME = "healia"
 
 # --- Behavior ---
-# Keep instructions in ONE place (RealtimeModel). Agent class stays thin.
 INSTRUCTIONS = """
 You are Healia, a realtime voice assistant.
 
@@ -26,17 +25,16 @@ This is currently a voice-system test.
 GREETING_INSTRUCTIONS = (
     "Greet the user briefly and ask how you can help today. Do not repeat the greeting."
 )
+# Part 1: only greeting uses generate_reply; then Gemini auto-replies to user audio.
+# Set False if the opening greeting causes a double first response.
 ENABLE_GREETING = True
 
-# --- Thinking (lower latency when thoughts are off) ---
+# --- Thinking ---
 INCLUDE_THOUGHTS = False
 
-# --- Gemini built-in VAD / turn detection ---
-# Docs suggest ~500–800ms silence for a balance of latency vs mid-sentence cuts.
-# Tweak these while testing response delay and double-answers.
+# --- Gemini VAD ---
 VAD_ENABLED = True
 SILENCE_DURATION_MS = 600
 PREFIX_PADDING_MS = 20
-# "LOW" | "HIGH" — mapped in agent.py to google.genai types
 START_OF_SPEECH_SENSITIVITY = "LOW"
 END_OF_SPEECH_SENSITIVITY = "LOW"
