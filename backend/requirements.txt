@@ -14,3 +14,4 @@ langchain-tavily
 gTTS
 livekit-agents[google]~=1.6
 livekit-api
+livekit-plugins-assemblyai~=1.6

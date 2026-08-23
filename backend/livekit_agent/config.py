@@ -15,9 +15,10 @@ AGENT_NAME = "healia"
 INSTRUCTIONS = """
 You are Healia, a realtime voice assistant.
 
-Speak naturally and keep responses concise.
+Speak naturally and keep responses concise (2-3 sentences max).
+The user speaks English, sometimes with a South Asian accent — listen to their intent, not exact wording.
+Do not ask the same question twice if the user already answered.
 Ask one question at a time.
-Do not repeat yourself unless the user asks you to.
 Do not claim to provide a medical diagnosis.
 This is currently a voice-system test.
 """.strip()
@@ -25,16 +26,30 @@ This is currently a voice-system test.
 GREETING_INSTRUCTIONS = (
     "Greet the user briefly and ask how you can help today. Do not repeat the greeting."
 )
-# Part 1: only greeting uses generate_reply; then Gemini auto-replies to user audio.
-# Set False if the opening greeting causes a double first response.
 ENABLE_GREETING = True
 
 # --- Thinking ---
 INCLUDE_THOUGHTS = False
 
+# --- Turn detection ---
+# "realtime_llm" = Gemini hears audio directly and decides when to reply (use this).
+# "stt" = AssemblyAI decides turns — needs u3-rt-pro; broke comprehension on streaming-english.
+TURN_DETECTION = "realtime_llm"
+TURN_ENDPOINTING_MIN_DELAY_S = 0.0
+
 # --- Gemini VAD ---
 VAD_ENABLED = True
-SILENCE_DURATION_MS = 600
-PREFIX_PADDING_MS = 20
-START_OF_SPEECH_SENSITIVITY = "LOW"
-END_OF_SPEECH_SENSITIVITY = "LOW"
+SILENCE_DURATION_MS = 400
+PREFIX_PADDING_MS = 200
+START_OF_SPEECH_SENSITIVITY = "HIGH"
+END_OF_SPEECH_SENSITIVITY = "HIGH"
+
+# --- Part 2: AssemblyAI STT (logging only; does not control replies) ---
+STT_ENABLED = True
+STT_MODEL = "universal-streaming-english"
+STT_SETTLE_MS = 400
+STT_LOG_INTERIM = False
+# Only used when TURN_DETECTION == "stt".
+STT_MIN_TURN_SILENCE_MS = 100
+STT_MAX_TURN_SILENCE_MS = 900
+STT_VOICE_FOCUS = None
