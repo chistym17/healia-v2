@@ -54,3 +54,12 @@ STT_LOG_INTERIM = False
 STT_MIN_TURN_SILENCE_MS = 100
 STT_MAX_TURN_SILENCE_MS = 900
 STT_VOICE_FOCUS = None
+
+# --- Part 3: Supervisor (step 1 = log only; step 2 = controlled speech) ---
+SUPERVISOR_ENABLED = True
+# log_only: supervisor runs on each FINAL PATIENT TURN; Gemini voice unchanged
+# controlled: (step 2) Gemini speaks only approved spoken_utterance
+SUPERVISOR_MODE = "log_only"
+SUPERVISOR_MODEL = "gemini-2.0-flash"
+SUPERVISOR_TEMPERATURE = 0.2
+SUPERVISOR_MAX_FOLLOWUPS = 8

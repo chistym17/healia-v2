@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from livekit_agent.events import log_event, log_note
 
+OnFinalTurn = Callable[[str, str], Awaitable[None] | None]
+
 
 class TurnAssembler:
-    def __init__(self, session_id: str, settle_ms: int = 400) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        settle_ms: int = 400,
+        on_final_turn: OnFinalTurn | None = None,
+    ) -> None:
         self.session_id = session_id
         self.settle_ms = settle_ms
         self.turn_n = 0
         self._parts: list[str] = []
         self._speaking = False
         self._flush_task: asyncio.Task | None = None
+        self._on_final_turn = on_final_turn
 
     def on_user_speaking(self) -> None:
         self._speaking = True
@@ -82,3 +91,7 @@ class TurnAssembler:
             self.session_id,
             f"FINAL PATIENT TURN ({turn_id}):\n{text}",
         )
+        if self._on_final_turn is not None:
+            result = self._on_final_turn(turn_id, text)
+            if asyncio.iscoroutine(result):
+                await result

@@ -13,7 +13,9 @@ except ImportError:  # older livekit-agents 1.6.x
 from livekit.plugins import assemblyai, google
 
 from livekit_agent import config
+from livekit_agent.consultation import handle_patient_turn
 from livekit_agent.events import log_event, start_session_log
+from livekit_agent.state import ConsultationState
 from livekit_agent.turns import TurnAssembler
 
 load_dotenv()
@@ -227,7 +229,20 @@ async def healia_session(ctx: JobContext) -> None:
     log_event("VOICE", "room_connected", session_id=session_id, detail=f"room={room_name}")
 
     stt = build_stt()
-    turns = TurnAssembler(session_id, settle_ms=config.STT_SETTLE_MS) if stt else None
+    consult_state = ConsultationState(session_id=session_id)
+
+    async def on_final_turn(turn_id: str, text: str) -> None:
+        await handle_patient_turn(session_id, turn_id, text, consult_state)
+
+    turns = (
+        TurnAssembler(
+            session_id,
+            settle_ms=config.STT_SETTLE_MS,
+            on_final_turn=on_final_turn if config.SUPERVISOR_ENABLED else None,
+        )
+        if stt
+        else None
+    )
 
     reply_path = "stt_turn_detection" if _uses_stt_turn_detection() else "gemini_auto"
     session_kwargs: dict = {"llm": build_realtime_model()}
@@ -239,7 +254,10 @@ async def healia_session(ctx: JobContext) -> None:
             "STT",
             "enabled",
             session_id=session_id,
-            detail=f"model={config.STT_MODEL} mode=logging_only settle_ms={config.STT_SETTLE_MS}",
+            detail=(
+                f"model={config.STT_MODEL} mode=logging_only settle_ms={config.STT_SETTLE_MS} "
+                f"supervisor={config.SUPERVISOR_MODE if config.SUPERVISOR_ENABLED else 'off'}"
+            ),
         )
 
     session = AgentSession(**session_kwargs)
