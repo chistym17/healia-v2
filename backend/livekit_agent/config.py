@@ -8,14 +8,14 @@ from __future__ import annotations
 # --- Model ---
 MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 VOICE = "Puck"
-TEMPERATURE = 0.7
+TEMPERATURE = 0.5
 AGENT_NAME = "healia"
 
 # --- Behavior ---
 INSTRUCTIONS = """
 You are Healia, a realtime voice assistant.
 
-Speak naturally and keep responses concise (2-3 sentences max).
+Keep every reply to 1-2 short sentences (under 20 words when possible).
 The user speaks English, sometimes with a South Asian accent — listen to their intent, not exact wording.
 Do not ask the same question twice if the user already answered.
 Ask one question at a time.
@@ -24,12 +24,13 @@ This is currently a voice-system test.
 """.strip()
 
 GREETING_INSTRUCTIONS = (
-    "Greet the user briefly and ask how you can help today. Do not repeat the greeting."
+    "Say hi in one short sentence and ask how you can help. Do not repeat the greeting."
 )
 ENABLE_GREETING = True
 
-# --- Thinking ---
+# --- Thinking (Gemini 2.5: thinking_budget; set 0 for lowest latency) ---
 INCLUDE_THOUGHTS = False
+THINKING_BUDGET = 0
 
 # --- Turn detection ---
 # "realtime_llm" = Gemini hears audio directly and decides when to reply (use this).
@@ -39,7 +40,7 @@ TURN_ENDPOINTING_MIN_DELAY_S = 0.0
 
 # --- Gemini VAD ---
 VAD_ENABLED = True
-SILENCE_DURATION_MS = 400
+SILENCE_DURATION_MS = 500
 PREFIX_PADDING_MS = 200
 START_OF_SPEECH_SENSITIVITY = "HIGH"
 END_OF_SPEECH_SENSITIVITY = "HIGH"

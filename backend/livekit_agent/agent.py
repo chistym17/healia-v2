@@ -46,6 +46,7 @@ def build_realtime_model() -> google.realtime.RealtimeModel:
         "instructions": config.INSTRUCTIONS,
         "thinking_config": types.ThinkingConfig(
             include_thoughts=config.INCLUDE_THOUGHTS,
+            thinking_budget=config.THINKING_BUDGET,
         ),
     }
 
