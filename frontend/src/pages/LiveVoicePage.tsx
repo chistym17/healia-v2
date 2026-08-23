@@ -8,7 +8,7 @@ import {
   useSession,
   useVoiceAssistant,
 } from "@livekit/components-react";
-import { TokenSource } from "livekit-client";
+import { Room, TokenSource } from "livekit-client";
 import { Link } from "react-router-dom";
 import "@livekit/components-styles";
 
@@ -59,7 +59,21 @@ function VoiceSession() {
   // Stable room name — Date.now() inline in render caused endless token fetches.
   const roomName = useMemo(() => `healia-test-${Date.now()}`, []);
 
+  const room = useMemo(
+    () =>
+      new Room({
+        audioCaptureDefaults: {
+          autoGainControl: true,
+          echoCancellation: true,
+          // Browser noise suppression can drop quiet/normal speech levels.
+          noiseSuppression: false,
+        },
+      }),
+    [],
+  );
+
   const session = useSession(tokenSource, {
+    room,
     roomName,
     agentName: "healia",
   });

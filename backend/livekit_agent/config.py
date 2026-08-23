@@ -8,35 +8,49 @@ from __future__ import annotations
 # --- Model ---
 MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 VOICE = "Puck"
-TEMPERATURE = 0.7
+TEMPERATURE = 0.5
 AGENT_NAME = "healia"
 
 # --- Behavior ---
-# Keep instructions in ONE place (RealtimeModel). Agent class stays thin.
 INSTRUCTIONS = """
 You are Healia, a realtime voice assistant.
 
-Speak naturally and keep responses concise.
+Keep every reply to 1-2 short sentences (under 20 words when possible).
+The user speaks English, sometimes with a South Asian accent — listen to their intent, not exact wording.
+Do not ask the same question twice if the user already answered.
 Ask one question at a time.
-Do not repeat yourself unless the user asks you to.
 Do not claim to provide a medical diagnosis.
 This is currently a voice-system test.
 """.strip()
 
 GREETING_INSTRUCTIONS = (
-    "Greet the user briefly and ask how you can help today. Do not repeat the greeting."
+    "Say hi in one short sentence and ask how you can help. Do not repeat the greeting."
 )
 ENABLE_GREETING = True
 
-# --- Thinking (lower latency when thoughts are off) ---
+# --- Thinking (Gemini 2.5: thinking_budget; set 0 for lowest latency) ---
 INCLUDE_THOUGHTS = False
+THINKING_BUDGET = 0
 
-# --- Gemini built-in VAD / turn detection ---
-# Docs suggest ~500–800ms silence for a balance of latency vs mid-sentence cuts.
-# Tweak these while testing response delay and double-answers.
+# --- Turn detection ---
+# "realtime_llm" = Gemini hears audio directly and decides when to reply (use this).
+# "stt" = AssemblyAI decides turns — needs u3-rt-pro; broke comprehension on streaming-english.
+TURN_DETECTION = "realtime_llm"
+TURN_ENDPOINTING_MIN_DELAY_S = 0.0
+
+# --- Gemini VAD ---
 VAD_ENABLED = True
-SILENCE_DURATION_MS = 600
-PREFIX_PADDING_MS = 20
-# "LOW" | "HIGH" — mapped in agent.py to google.genai types
-START_OF_SPEECH_SENSITIVITY = "LOW"
-END_OF_SPEECH_SENSITIVITY = "LOW"
+SILENCE_DURATION_MS = 500
+PREFIX_PADDING_MS = 200
+START_OF_SPEECH_SENSITIVITY = "HIGH"
+END_OF_SPEECH_SENSITIVITY = "HIGH"
+
+# --- Part 2: AssemblyAI STT (logging only; does not control replies) ---
+STT_ENABLED = True
+STT_MODEL = "universal-streaming-english"
+STT_SETTLE_MS = 400
+STT_LOG_INTERIM = False
+# Only used when TURN_DETECTION == "stt".
+STT_MIN_TURN_SILENCE_MS = 100
+STT_MAX_TURN_SILENCE_MS = 900
+STT_VOICE_FOCUS = None

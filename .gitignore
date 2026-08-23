@@ -9,4 +9,9 @@ doc.txt
 key.json
 livekit-setup.md
 update-plan.md
+update-plan.txt
 overview.md
+logs/
+
+cd backend
+python -m livekit_agent.agent dev
