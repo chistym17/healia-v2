@@ -1,18 +1,31 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from livekit_agent.events import log_event, log_note
 
+OnFinalTurn = Callable[[str, str], Awaitable[None] | None]
+
 
 class TurnAssembler:
-    def __init__(self, session_id: str, settle_ms: int = 400) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        settle_ms: int = 400,
+        on_final_turn: OnFinalTurn | None = None,
+        *,
+        assemble_from_events: bool = True,
+    ) -> None:
         self.session_id = session_id
         self.settle_ms = settle_ms
         self.turn_n = 0
         self._parts: list[str] = []
         self._speaking = False
         self._flush_task: asyncio.Task | None = None
+        self._on_final_turn = on_final_turn
+        # False = STT events are logged only; finals come from emit_final (commit path).
+        self._assemble_from_events = assemble_from_events
 
     def on_user_speaking(self) -> None:
         self._speaking = True
@@ -22,7 +35,8 @@ class TurnAssembler:
     def on_user_stopped(self) -> None:
         self._speaking = False
         log_event("STT", "speech_ended", session_id=self.session_id)
-        self._schedule_flush()
+        if self._assemble_from_events:
+            self._schedule_flush()
 
     def on_transcript(self, text: str, is_final: bool) -> None:
         text = (text or "").strip()
@@ -38,15 +52,45 @@ class TurnAssembler:
             )
             return
 
-        self._parts.append(text)
         log_event(
             "STT",
             "final_segment",
             session_id=self.session_id,
             detail=f"chars={len(text)}",
         )
+        if not self._assemble_from_events:
+            return
+
+        self._parts.append(text)
         if not self._speaking:
             self._schedule_flush()
+
+    async def emit_final(self, text: str) -> None:
+        """Emit a completed patient turn from an external transcript (e.g. commit_user_turn)."""
+        text = (text or "").strip()
+        if not text:
+            return
+
+        self._parts = []
+        self._cancel_flush()
+        self.turn_n += 1
+        turn_id = f"turn_{self.turn_n}"
+
+        log_event(
+            "STT",
+            "final_turn",
+            session_id=self.session_id,
+            turn_id=turn_id,
+            detail=f"chars={len(text)} source=commit",
+        )
+        log_note(
+            self.session_id,
+            f"FINAL PATIENT TURN ({turn_id}):\n{text}",
+        )
+        if self._on_final_turn is not None:
+            result = self._on_final_turn(turn_id, text)
+            if asyncio.iscoroutine(result):
+                await result
 
     def _cancel_flush(self) -> None:
         if self._flush_task and not self._flush_task.done():
@@ -82,3 +126,7 @@ class TurnAssembler:
             self.session_id,
             f"FINAL PATIENT TURN ({turn_id}):\n{text}",
         )
+        if self._on_final_turn is not None:
+            result = self._on_final_turn(turn_id, text)
+            if asyncio.iscoroutine(result):
+                await result

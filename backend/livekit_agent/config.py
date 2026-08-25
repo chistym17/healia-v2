@@ -54,3 +54,23 @@ STT_LOG_INTERIM = False
 STT_MIN_TURN_SILENCE_MS = 100
 STT_MAX_TURN_SILENCE_MS = 900
 STT_VOICE_FOCUS = None
+
+# --- Part 3: Supervisor ---
+SUPERVISOR_ENABLED = True
+# log_only  = step 1: supervisor logs decisions; Gemini still free-chats
+# controlled = step 2: Gemini speaks only supervisor spoken_utterance
+SUPERVISOR_MODE = "controlled"
+SUPERVISOR_MODEL = "gemini-3.5-flash-lite"  # A/B vs 3.6-flash: TTFB was 5–20s on 3.6
+SUPERVISOR_TEMPERATURE = 0.2
+SUPERVISOR_MAX_FOLLOWUPS = 8
+
+# Gemini voice instructions when SUPERVISOR_MODE == "controlled"
+CONTROLLED_VOICE_INSTRUCTIONS = """
+You are Healia's voice output only.
+
+Rules:
+- Never initiate conversation on your own.
+- Never add diagnoses, treatments, doses, or medical facts.
+- Only speak the content given to you in generate_reply instructions.
+- Keep the same meaning; be natural but brief.
+""".strip()
