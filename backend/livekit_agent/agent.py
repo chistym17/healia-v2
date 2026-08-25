@@ -1,5 +1,7 @@
 import time
 import uuid
+import asyncio
+from collections.abc import Callable
 
 from dotenv import load_dotenv
 from google.genai import types
@@ -16,6 +18,7 @@ from livekit_agent import config
 from livekit_agent.consultation import handle_patient_turn
 from livekit_agent.events import log_event, start_session_log
 from livekit_agent.state import ConsultationState
+from livekit_agent.turn_control import TurnCoordinator
 from livekit_agent.turns import TurnAssembler
 
 load_dotenv()
@@ -40,20 +43,30 @@ def _uses_stt_turn_detection() -> bool:
     return config.STT_ENABLED and config.TURN_DETECTION == "stt"
 
 
+def _uses_controlled_speech() -> bool:
+    return config.SUPERVISOR_ENABLED and config.SUPERVISOR_MODE == "controlled"
+
+
+def _voice_instructions() -> str:
+    if _uses_controlled_speech():
+        return config.CONTROLLED_VOICE_INSTRUCTIONS
+    return config.INSTRUCTIONS
+
+
 def build_realtime_model() -> google.realtime.RealtimeModel:
     kwargs: dict = {
         "model": config.MODEL,
         "voice": config.VOICE,
         "temperature": config.TEMPERATURE,
-        "instructions": config.INSTRUCTIONS,
+        "instructions": _voice_instructions(),
         "thinking_config": types.ThinkingConfig(
             include_thoughts=config.INCLUDE_THOUGHTS,
             thinking_budget=config.THINKING_BUDGET,
         ),
     }
 
-    if _uses_stt_turn_detection():
-        # Let LiveKit + AssemblyAI own turn boundaries; avoid dual VAD with Gemini.
+    if _uses_controlled_speech() or _uses_stt_turn_detection():
+        # No Gemini auto-replies; supervisor + generate_reply own speech.
         kwargs["realtime_input_config"] = types.RealtimeInputConfig(
             automatic_activity_detection=types.AutomaticActivityDetection(
                 disabled=True,
@@ -124,19 +137,23 @@ def apply_turn_handling(session_kwargs: dict) -> None:
 
 class HealiaAgent(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions=config.INSTRUCTIONS)
+        super().__init__(instructions=_voice_instructions())
 
 
 def _attach_session_logs(
     session: AgentSession,
     session_id: str,
     turns: TurnAssembler | None,
+    coordinator: TurnCoordinator | None = None,
+    get_session: Callable[[], AgentSession | None] | None = None,
 ) -> None:
     user_speech_started_at: float | None = None
+    agent_state: str = "listening"
 
     @session.on("agent_state_changed")
     def _on_agent_state(ev) -> None:
-        nonlocal user_speech_started_at
+        nonlocal user_speech_started_at, agent_state
+        agent_state = ev.new_state
         detail = f"{ev.old_state}->{ev.new_state}"
         if (
             ev.new_state == "speaking"
@@ -156,6 +173,19 @@ def _attach_session_logs(
     @session.on("user_state_changed")
     def _on_user_state(ev) -> None:
         nonlocal user_speech_started_at
+
+        async def _maybe_cancel() -> None:
+            if coordinator is None:
+                return
+            active_session = get_session() if get_session else session
+            if ev.new_state != "speaking":
+                return
+            if agent_state == "speaking" or coordinator.has_active():
+                await coordinator.cancel_active(
+                    active_session,
+                    reason="user_interrupted",
+                )
+
         log_event(
             "VOICE",
             "user_state",
@@ -164,6 +194,8 @@ def _attach_session_logs(
         )
         if ev.new_state == "speaking":
             user_speech_started_at = time.monotonic()
+            if coordinator is not None:
+                asyncio.create_task(_maybe_cancel())
         if turns is None:
             return
         if ev.new_state == "speaking":
@@ -230,9 +262,31 @@ async def healia_session(ctx: JobContext) -> None:
 
     stt = build_stt()
     consult_state = ConsultationState(session_id=session_id)
+    session_holder: dict[str, AgentSession | None] = {"session": None}
+    coordinator = TurnCoordinator(session_id) if config.SUPERVISOR_ENABLED else None
 
     async def on_final_turn(turn_id: str, text: str) -> None:
-        await handle_patient_turn(session_id, turn_id, text, consult_state)
+        if coordinator is None:
+            await handle_patient_turn(
+                session_id,
+                turn_id,
+                text,
+                consult_state,
+                session=session_holder["session"],
+            )
+            return
+
+        async def _work() -> None:
+            await handle_patient_turn(
+                session_id,
+                turn_id,
+                text,
+                consult_state,
+                session=session_holder["session"],
+                coordinator=coordinator,
+            )
+
+        await coordinator.run_turn(turn_id, session_holder["session"], _work)
 
     turns = (
         TurnAssembler(
@@ -244,7 +298,12 @@ async def healia_session(ctx: JobContext) -> None:
         else None
     )
 
-    reply_path = "stt_turn_detection" if _uses_stt_turn_detection() else "gemini_auto"
+    if _uses_controlled_speech():
+        reply_path = "supervisor_controlled"
+    elif _uses_stt_turn_detection():
+        reply_path = "stt_turn_detection"
+    else:
+        reply_path = "gemini_auto"
     session_kwargs: dict = {"llm": build_realtime_model()}
     apply_turn_handling(session_kwargs)
 
@@ -261,7 +320,14 @@ async def healia_session(ctx: JobContext) -> None:
         )
 
     session = AgentSession(**session_kwargs)
-    _attach_session_logs(session, session_id, turns)
+    session_holder["session"] = session
+    _attach_session_logs(
+        session,
+        session_id,
+        turns,
+        coordinator=coordinator,
+        get_session=lambda: session_holder["session"],
+    )
 
     await session.start(room=ctx.room, agent=HealiaAgent())
     log_event(
