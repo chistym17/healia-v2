@@ -65,6 +65,13 @@ async def handle_patient_turn(
             detail="ok=false error=supervisor_failed",
         )
         if _uses_controlled_speech() and session is not None:
+            log_event(
+                "VOICE",
+                "speech_requested",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail="fallback=supervisor_error",
+            )
             await session.generate_reply(
                 instructions=(
                     "Say exactly: Sorry, I had trouble processing that. "

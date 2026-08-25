@@ -12,6 +12,10 @@ try:
     from livekit.agents import TurnHandlingOptions
 except ImportError:  # older livekit-agents 1.6.x
     TurnHandlingOptions = None  # type: ignore[misc, assignment]
+try:
+    from livekit.agents.llm import StopResponse
+except ImportError:  # pragma: no cover
+    StopResponse = None  # type: ignore[misc, assignment]
 from livekit.plugins import assemblyai, google
 
 from livekit_agent import config
@@ -115,6 +119,12 @@ def build_stt():
 
 
 def build_turn_handling() -> dict | object | None:
+    # Controlled: manual turns + commit_user_turn(skip_reply=True) flushes STT
+    # without LiveKit auto-reply. Supervisor then speaks via generate_reply.
+    if _uses_controlled_speech():
+        if TurnHandlingOptions is not None:
+            return TurnHandlingOptions(turn_detection="manual")
+        return "manual"
     if not _uses_stt_turn_detection():
         return None
     if TurnHandlingOptions is not None:
@@ -127,6 +137,9 @@ def build_turn_handling() -> dict | object | None:
 
 def apply_turn_handling(session_kwargs: dict) -> None:
     turn_handling = build_turn_handling()
+    if turn_handling == "manual":
+        session_kwargs["turn_detection"] = "manual"
+        return
     if turn_handling is not None:
         session_kwargs["turn_handling"] = turn_handling
         return
@@ -135,9 +148,37 @@ def apply_turn_handling(session_kwargs: dict) -> None:
         session_kwargs["min_endpointing_delay"] = config.TURN_ENDPOINTING_MIN_DELAY_S
 
 
+async def _commit_user_transcript(session: AgentSession) -> str:
+    """Flush STT and return transcript without triggering an auto-reply."""
+    kwargs = {
+        "transcript_timeout": 5.0,
+        "stt_flush_duration": 1.5,
+    }
+    try:
+        result = session.commit_user_turn(skip_reply=True, **kwargs)
+    except TypeError:
+        # Older livekit-agents: no skip_reply; StopResponse should block reply.
+        try:
+            result = session.commit_user_turn(**kwargs)
+        except TypeError:
+            result = session.commit_user_turn()
+
+    if asyncio.isfuture(result) or asyncio.iscoroutine(result):
+        transcript = await result
+    else:
+        transcript = result
+    return (transcript or "").strip()
+
+
 class HealiaAgent(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=_voice_instructions())
+
+    async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
+        # Supervisor pipeline speaks explicitly; never auto-reply on LiveKit turn end.
+        if _uses_controlled_speech() and StopResponse is not None:
+            raise StopResponse()
+        await super().on_user_turn_completed(turn_ctx, new_message)
 
 
 def _attach_session_logs(
@@ -149,6 +190,7 @@ def _attach_session_logs(
 ) -> None:
     user_speech_started_at: float | None = None
     agent_state: str = "listening"
+    commit_task: asyncio.Task | None = None
 
     @session.on("agent_state_changed")
     def _on_agent_state(ev) -> None:
@@ -172,7 +214,7 @@ def _attach_session_logs(
 
     @session.on("user_state_changed")
     def _on_user_state(ev) -> None:
-        nonlocal user_speech_started_at
+        nonlocal user_speech_started_at, commit_task
 
         async def _maybe_cancel() -> None:
             if coordinator is None:
@@ -186,6 +228,31 @@ def _attach_session_logs(
                     reason="user_interrupted",
                 )
 
+        async def _commit_controlled_turn() -> None:
+            active_session = get_session() if get_session else session
+            if active_session is None or turns is None:
+                return
+            log_event("STT", "commit_started", session_id=session_id)
+            try:
+                transcript = await _commit_user_transcript(active_session)
+            except Exception as exc:
+                log_event(
+                    "STT",
+                    "commit_error",
+                    session_id=session_id,
+                    detail=str(exc),
+                )
+                return
+            if not transcript:
+                log_event(
+                    "STT",
+                    "empty_transcript",
+                    session_id=session_id,
+                    detail="commit returned empty",
+                )
+                return
+            await turns.emit_final(transcript)
+
         log_event(
             "VOICE",
             "user_state",
@@ -194,6 +261,9 @@ def _attach_session_logs(
         )
         if ev.new_state == "speaking":
             user_speech_started_at = time.monotonic()
+            if commit_task is not None and not commit_task.done():
+                commit_task.cancel()
+                commit_task = None
             if coordinator is not None:
                 asyncio.create_task(_maybe_cancel())
         if turns is None:
@@ -202,6 +272,8 @@ def _attach_session_logs(
             turns.on_user_speaking()
         elif ev.old_state == "speaking" and ev.new_state in ("listening", "away"):
             turns.on_user_stopped()
+            if _uses_controlled_speech():
+                commit_task = asyncio.create_task(_commit_controlled_turn())
 
     @session.on("user_input_transcribed")
     def _on_user_transcript(ev) -> None:
@@ -293,6 +365,7 @@ async def healia_session(ctx: JobContext) -> None:
             session_id,
             settle_ms=config.STT_SETTLE_MS,
             on_final_turn=on_final_turn if config.SUPERVISOR_ENABLED else None,
+            assemble_from_events=not _uses_controlled_speech(),
         )
         if stt
         else None
@@ -315,7 +388,8 @@ async def healia_session(ctx: JobContext) -> None:
             session_id=session_id,
             detail=(
                 f"model={config.STT_MODEL} mode=logging_only settle_ms={config.STT_SETTLE_MS} "
-                f"supervisor={config.SUPERVISOR_MODE if config.SUPERVISOR_ENABLED else 'off'}"
+                f"supervisor={config.SUPERVISOR_MODE if config.SUPERVISOR_ENABLED else 'off'} "
+                f"commit={'on_speech_end' if _uses_controlled_speech() else 'events'}"
             ),
         )
 
