@@ -22,6 +22,7 @@ from livekit_agent import config
 from livekit_agent.consultation import handle_patient_turn
 from livekit_agent.events import log_event, start_session_log
 from livekit_agent.state import ConsultationState
+from livekit_agent.supervisor import warm_supervisor
 from livekit_agent.turn_control import TurnCoordinator
 from livekit_agent.turns import TurnAssembler
 
@@ -411,6 +412,11 @@ async def healia_session(ctx: JobContext) -> None:
         detail=f"reply_path={reply_path}",
     )
 
+    # Warm supervisor in parallel with greeting (cuts turn-1 model cold start).
+    warmup_task: asyncio.Task | None = None
+    if config.SUPERVISOR_ENABLED:
+        warmup_task = asyncio.create_task(warm_supervisor(session_id=session_id))
+
     if config.ENABLE_GREETING:
         log_event(
             "VOICE",
@@ -420,6 +426,16 @@ async def healia_session(ctx: JobContext) -> None:
         )
         await session.generate_reply(instructions=config.GREETING_INSTRUCTIONS)
         log_event("VOICE", "greeting_done", session_id=session_id)
+
+    if warmup_task is not None and not warmup_task.done():
+        # Don't block listening forever; patient may speak before warmup finishes.
+        log_event(
+            "SUP",
+            "warmup_pending",
+            session_id=session_id,
+            turn_id="warmup",
+            detail="greeting_done still_running=true",
+        )
 
 
 if __name__ == "__main__":

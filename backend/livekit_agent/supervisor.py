@@ -129,6 +129,69 @@ def _ms_since(t0: float) -> int:
     return int((time.monotonic() - t0) * 1000)
 
 
+_client: genai.Client | None = None
+
+
+def get_supervisor_client() -> genai.Client:
+    """Process-wide reused GenAI client (created once per agent worker)."""
+    global _client
+    if _client is None:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("GOOGLE_API_KEY is not set")
+        _client = genai.Client(api_key=api_key)
+    return _client
+
+
+async def warm_supervisor(*, session_id: str) -> None:
+    """Fire a tiny discarded supervisor call while greeting runs (cuts turn-1 TTFB)."""
+    if not config.SUPERVISOR_ENABLED:
+        return
+    t0 = time.monotonic()
+    log_event(
+        "SUP",
+        "warmup_start",
+        session_id=session_id,
+        turn_id="warmup",
+        detail=f"+0ms model={config.SUPERVISOR_MODEL}",
+    )
+    try:
+        client = get_supervisor_client()
+        log_event(
+            "SUP",
+            "client_ready",
+            session_id=session_id,
+            turn_id="warmup",
+            detail=f"+{_ms_since(t0)}ms note=reused_or_created",
+        )
+        # Minimal payload; result discarded — only warms model/connection path.
+        await client.aio.models.generate_content(
+            model=config.SUPERVISOR_MODEL,
+            contents='{"patient_turn":"hi","consultation_state":{"phase":"gathering","facts":{},"asked_topics":[]}}',
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM_PROMPT,
+                temperature=config.SUPERVISOR_TEMPERATURE,
+                response_mime_type="application/json",
+                max_output_tokens=64,
+            ),
+        )
+        log_event(
+            "SUP",
+            "warmup_done",
+            session_id=session_id,
+            turn_id="warmup",
+            detail=f"+{_ms_since(t0)}ms ok=true",
+        )
+    except Exception as exc:
+        log_event(
+            "SUP",
+            "warmup_done",
+            session_id=session_id,
+            turn_id="warmup",
+            detail=f"+{_ms_since(t0)}ms ok=false error={exc}",
+        )
+
+
 async def _generate_supervisor_text(
     client: genai.Client,
     *,
@@ -237,10 +300,6 @@ async def run_supervisor(
         detail=f"+0ms model={config.SUPERVISOR_MODEL}",
     )
 
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY is not set")
-
     user_prompt = json.dumps(
         {
             "patient_turn": patient_turn,
@@ -249,13 +308,13 @@ async def run_supervisor(
         ensure_ascii=False,
     )
 
-    client = genai.Client(api_key=api_key)
+    client = get_supervisor_client()
     log_event(
         "SUP",
         "client_ready",
         session_id=session_id,
         turn_id=turn_id,
-        detail=f"+{_ms_since(t0)}ms note=new_client_per_call",
+        detail=f"+{_ms_since(t0)}ms note=reused_client",
     )
 
     text = await _generate_supervisor_text(
