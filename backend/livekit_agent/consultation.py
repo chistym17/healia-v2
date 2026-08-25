@@ -46,6 +46,8 @@ async def handle_patient_turn(
         decision = await run_supervisor(
             patient_turn=patient_text,
             state=state.snapshot(),
+            session_id=session_id,
+            turn_id=turn_id,
         )
     except asyncio.CancelledError:
         raise
@@ -55,14 +57,17 @@ async def handle_patient_turn(
             "supervisor_error",
             session_id=session_id,
             turn_id=turn_id,
-            detail=str(exc),
+            detail=f"+{int((time.monotonic() - started) * 1000)}ms {exc}",
         )
         log_event(
             "CTRL",
             "decision_validated",
             session_id=session_id,
             turn_id=turn_id,
-            detail="ok=false error=supervisor_failed",
+            detail=(
+                f"+{int((time.monotonic() - started) * 1000)}ms "
+                f"ok=false error=supervisor_failed"
+            ),
         )
         if _uses_controlled_speech() and session is not None:
             log_event(
@@ -88,19 +93,20 @@ async def handle_patient_turn(
         session_id=session_id,
         turn_id=turn_id,
         detail=(
-            f"action={decision.action} confidence={decision.confidence:.2f} "
-            f"elapsed_ms={elapsed_ms}"
+            f"+{elapsed_ms}ms action={decision.action} "
+            f"confidence={decision.confidence:.2f}"
         ),
     )
 
     result = validate_and_apply(state, decision)
+    validated_ms = int((time.monotonic() - started) * 1000)
     if result.ok:
         log_event(
             "CTRL",
             "decision_validated",
             session_id=session_id,
             turn_id=turn_id,
-            detail="ok=true",
+            detail=f"+{validated_ms}ms ok=true",
         )
         log_event(
             "CTRL",
@@ -115,7 +121,7 @@ async def handle_patient_turn(
             "decision_validated",
             session_id=session_id,
             turn_id=turn_id,
-            detail=f"ok=false error={result.error}",
+            detail=f"+{validated_ms}ms ok=false error={result.error}",
         )
         return
 
