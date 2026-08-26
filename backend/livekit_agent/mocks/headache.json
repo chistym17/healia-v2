@@ -1,0 +1,32 @@
+{
+  "complaint_key": "headache",
+  "red_flag_hints": [
+    "Sudden thunderclap onset",
+    "New vision loss or double vision",
+    "Fever with stiff neck",
+    "Weakness, confusion, or fainting"
+  ],
+  "suggested_questions": [
+    {
+      "topic": "duration",
+      "question": "How long have you had this headache?"
+    },
+    {
+      "topic": "location",
+      "question": "Where is the pain — forehead, temples, or behind the eyes?"
+    },
+    {
+      "topic": "severity",
+      "question": "On a scale of 1 to 10, how bad is the pain?"
+    },
+    {
+      "topic": "associated_symptoms",
+      "question": "Any nausea, sensitivity to light, or vision changes?"
+    },
+    {
+      "topic": "onset_quality",
+      "question": "Did it start suddenly, or build gradually?"
+    }
+  ],
+  "notes": "Mock assessment pack for Part 4 — not real medical evidence."
+}

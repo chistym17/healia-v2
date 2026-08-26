@@ -1,0 +1,24 @@
+{
+  "complaint_key": "default",
+  "red_flag_hints": [
+    "Severe or rapidly worsening symptoms",
+    "Difficulty breathing",
+    "Chest pain",
+    "Confusion or fainting"
+  ],
+  "suggested_questions": [
+    {
+      "topic": "duration",
+      "question": "How long have you been dealing with this?"
+    },
+    {
+      "topic": "severity",
+      "question": "How severe is it right now?"
+    },
+    {
+      "topic": "associated_symptoms",
+      "question": "Are you noticing any other symptoms with it?"
+    }
+  ],
+  "notes": "Fallback mock pack when complaint does not match a specific file."
+}

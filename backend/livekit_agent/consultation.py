@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 from livekit_agent import config
+from livekit_agent.assessment_rag import search as assessment_search
 from livekit_agent.controller import validate_and_apply
 from livekit_agent.events import log_event, log_note
 from livekit_agent.speech import speak_decision
@@ -42,12 +43,40 @@ async def handle_patient_turn(
     )
     started = time.monotonic()
 
+    snap = state.snapshot()
+    assessment_evidence = None
+    if config.ASSESSMENT_RAG_ENABLED:
+        log_event(
+            "RAG",
+            "retrieval_started",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail="source=mock",
+        )
+        assessment_evidence = assessment_search(
+            chief_complaint=snap.get("chief_complaint"),
+            known_facts=snap.get("facts") or {},
+            already_asked=snap.get("asked_topics") or [],
+            patient_turn=patient_text,
+        )
+        log_event(
+            "RAG",
+            "retrieval_finished",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail=(
+                f"source=mock pack={assessment_evidence.get('pack')} "
+                f"suggestions={len(assessment_evidence.get('suggested_questions') or [])}"
+            ),
+        )
+
     try:
         decision = await run_supervisor(
             patient_turn=patient_text,
-            state=state.snapshot(),
+            state=snap,
             session_id=session_id,
             turn_id=turn_id,
+            assessment_evidence=assessment_evidence,
         )
     except asyncio.CancelledError:
         raise
