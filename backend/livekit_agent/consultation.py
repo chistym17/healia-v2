@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from livekit_agent import config
 from livekit_agent.assessment_rag import search as assessment_search
+from livekit_agent.case_package import build_case_package
 from livekit_agent.controller import validate_and_apply
 from livekit_agent.events import log_event, log_note
 from livekit_agent.speech import speak_decision
@@ -167,6 +168,28 @@ async def handle_patient_turn(
             ]
         ),
     )
+
+    if decision.action == "build_final_query":
+        package = build_case_package(state)
+        log_event(
+            "CTRL",
+            "case_package_ready",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail=(
+                f"ready_for_retrieval={package.get('ready_for_retrieval')} "
+                f"query_chars={len(package.get('final_query') or '')}"
+            ),
+        )
+        log_note(
+            session_id,
+            "\n".join(
+                [
+                    f"CASE PACKAGE ({turn_id}):",
+                    json.dumps(package, ensure_ascii=False, indent=2),
+                ]
+            ),
+        )
 
     if config.SUPERVISOR_MODE == "log_only":
         log_event(
