@@ -64,6 +64,9 @@ SUPERVISOR_MODEL = "gemini-3.5-flash-lite"  # A/B vs 3.6-flash: TTFB was 5–20s
 SUPERVISOR_TEMPERATURE = 0.2
 SUPERVISOR_MAX_FOLLOWUPS = 8
 
+# --- Part 4: Mock assessment RAG (interface only) ---
+ASSESSMENT_RAG_ENABLED = True
+
 # Gemini voice instructions when SUPERVISOR_MODE == "controlled"
 CONTROLLED_VOICE_INSTRUCTIONS = """
 You are Healia's voice output only.

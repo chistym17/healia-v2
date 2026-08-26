@@ -41,6 +41,8 @@ Rules:
 - Prefer acknowledge when the patient only greets or gives no new medical info.
 - Use build_final_query when you have enough for a coherent final_query_draft.
 - Use escalate for emergency/red-flag language (chest pain, can't breathe, suicide, etc.).
+- If assessment_evidence is present, use suggested_questions / red_flag_hints to guide
+  the next followup_topic; do not invent diagnoses from it; still one question max.
 - English only.
 
 JSON schema:
@@ -289,6 +291,7 @@ async def run_supervisor(
     state: dict[str, Any],
     session_id: str = "-",
     turn_id: str = "-",
+    assessment_evidence: dict[str, Any] | None = None,
 ) -> SupervisorDecision:
     """Part 3A: same behavior; staged timing logs only."""
     t0 = time.monotonic()
@@ -300,13 +303,14 @@ async def run_supervisor(
         detail=f"+0ms model={config.SUPERVISOR_MODEL}",
     )
 
-    user_prompt = json.dumps(
-        {
-            "patient_turn": patient_turn,
-            "consultation_state": state,
-        },
-        ensure_ascii=False,
-    )
+    payload_in: dict[str, Any] = {
+        "patient_turn": patient_turn,
+        "consultation_state": state,
+    }
+    if assessment_evidence is not None:
+        payload_in["assessment_evidence"] = assessment_evidence
+
+    user_prompt = json.dumps(payload_in, ensure_ascii=False)
 
     client = get_supervisor_client()
     log_event(
