@@ -1,0 +1,452 @@
+[
+  {
+    "id": "eval_001",
+    "question": "What side effects can occur with buprenorphine?",
+    "relevant_ids": [
+      "statpearls_article-18708_56"
+    ],
+    "topic": "Buprenorphine",
+    "section": "Adverse Effects"
+  },
+  {
+    "id": "eval_002",
+    "question": "Which unwanted reactions are commonly linked to setmelanotide?",
+    "relevant_ids": [
+      "statpearls_article-148945_11"
+    ],
+    "topic": "Setmelanotide",
+    "section": "Adverse Effects"
+  },
+  {
+    "id": "eval_003",
+    "question": "What causes rickets to develop?",
+    "relevant_ids": [
+      "statpearls_article-95720_4"
+    ],
+    "topic": "Rickets",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_004",
+    "question": "How does molluscum contagiosum usually turn out over time?",
+    "relevant_ids": [
+      "statpearls_article-25233_30"
+    ],
+    "topic": "Molluscum Contagiosum",
+    "section": "Prognosis"
+  },
+  {
+    "id": "eval_005",
+    "question": "What complications can follow a Campylobacter infection?",
+    "relevant_ids": [
+      "statpearls_article-18790_31"
+    ],
+    "topic": "Campylobacter Infection",
+    "section": "Complications"
+  },
+  {
+    "id": "eval_006",
+    "question": "How does loose anagen syndrome affect hair at a biological level?",
+    "relevant_ids": [
+      "statpearls_article-24417_9"
+    ],
+    "topic": "Loose Anagen Syndrome",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_007",
+    "question": "What goes wrong in the brain during stroke reperfusion injury?",
+    "relevant_ids": [
+      "statpearls_article-28384_11"
+    ],
+    "topic": "Stroke Reperfusion Injury",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_008",
+    "question": "How are solitary pulmonary nodules assessed or categorized?",
+    "relevant_ids": [
+      "statpearls_article-29216_20"
+    ],
+    "topic": "Solitary Pulmonary Nodule",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_009",
+    "question": "When is surgery considered for gastric lymphoma?",
+    "relevant_ids": [
+      "statpearls_article-128834_24"
+    ],
+    "topic": "Gastric Lymphoma",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_010",
+    "question": "How should odontogenic orofacial space infections be evaluated?",
+    "relevant_ids": [
+      "statpearls_article-131889_22"
+    ],
+    "topic": "Odontogenic Orofacial Space Infections",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_011",
+    "question": "What are the main causes of hemolytic anemia?",
+    "relevant_ids": [
+      "statpearls_article-22737_7"
+    ],
+    "topic": "Hemolytic Anemia",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_012",
+    "question": "How is Nevus Anemicus evaluated or worked up?",
+    "relevant_ids": [
+      "statpearls_article-25856_17"
+    ],
+    "topic": "Nevus Anemicus",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_013",
+    "question": "How does Acarbose work in the body?",
+    "relevant_ids": [
+      "statpearls_article-17055_13"
+    ],
+    "topic": "Acarbose",
+    "section": "Mechanism of Action"
+  },
+  {
+    "id": "eval_014",
+    "question": "Who is most often affected by Akathisia?",
+    "relevant_ids": [
+      "statpearls_article-17316_7"
+    ],
+    "topic": "Akathisia",
+    "section": "Epidemiology"
+  },
+  {
+    "id": "eval_015",
+    "question": "What tests or assessments are used for Duodenal Ulcer?",
+    "relevant_ids": [
+      "statpearls_article-74397_10"
+    ],
+    "topic": "Duodenal Ulcer",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_016",
+    "question": "What treatments are used for Macrocytosis?",
+    "relevant_ids": [
+      "statpearls_article-24623_13"
+    ],
+    "topic": "Macrocytosis",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_017",
+    "question": "What causes Pneumocystis jirovecii Pneumonia?",
+    "relevant_ids": [
+      "statpearls_article-27348_4"
+    ],
+    "topic": "Pneumocystis jirovecii Pneumonia",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_018",
+    "question": "How is Subconjunctival Hemorrhage evaluated or worked up?",
+    "relevant_ids": [
+      "statpearls_article-29617_39"
+    ],
+    "topic": "Subconjunctival Hemorrhage",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_019",
+    "question": "How is Iritis typically managed or treated?",
+    "relevant_ids": [
+      "statpearls_article-23764_65"
+    ],
+    "topic": "Iritis",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_020",
+    "question": "What history and exam findings matter in Cavernous Sinus Syndromes?",
+    "relevant_ids": [
+      "statpearls_article-19034_12"
+    ],
+    "topic": "Cavernous Sinus Syndromes",
+    "section": "History and Physical"
+  },
+  {
+    "id": "eval_021",
+    "question": "What complications can occur with pattern electroretinogram testing?",
+    "relevant_ids": [
+      "statpearls_article-100456_29"
+    ],
+    "topic": "Pattern Electroretinogram",
+    "section": "Complications"
+  },
+  {
+    "id": "eval_022",
+    "question": "What should clinicians look for when examining Herpes Simplex Ophthalmicus?",
+    "relevant_ids": [
+      "statpearls_article-35539_14"
+    ],
+    "topic": "Herpes Simplex Ophthalmicus",
+    "section": "History and Physical"
+  },
+  {
+    "id": "eval_023",
+    "question": "What is known about how common Postconcussive Syndrome is?",
+    "relevant_ids": [
+      "statpearls_article-27484_7"
+    ],
+    "topic": "Postconcussive Syndrome",
+    "section": "Epidemiology"
+  },
+  {
+    "id": "eval_024",
+    "question": "What conditions should be considered in the differential for Peptic Ulcer Disease?",
+    "relevant_ids": [
+      "statpearls_article-26913_24"
+    ],
+    "topic": "Peptic Ulcer Disease",
+    "section": "Differential Diagnosis"
+  },
+  {
+    "id": "eval_025",
+    "question": "What are the main causes behind Pediatric Gastroenteritis?",
+    "relevant_ids": [
+      "statpearls_article-26833_1"
+    ],
+    "topic": "Pediatric Gastroenteritis",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_026",
+    "question": "What is the pathophysiology of Hepatitis C?",
+    "relevant_ids": [
+      "statpearls_article-22791_6"
+    ],
+    "topic": "Hepatitis C",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_027",
+    "question": "What treatments are used for Chronic Inflammatory Demyelinating Polyradiculoneuropathy?",
+    "relevant_ids": [
+      "statpearls_article-119994_50"
+    ],
+    "topic": "Chronic Inflammatory Demyelinating Polyradiculoneuropathy",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_028",
+    "question": "What causes Patellofemoral Arthritis?",
+    "relevant_ids": [
+      "statpearls_article-26732_9"
+    ],
+    "topic": "Patellofemoral Arthritis",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_029",
+    "question": "Who is most often affected by Pancytopenia?",
+    "relevant_ids": [
+      "statpearls_article-26583_10"
+    ],
+    "topic": "Pancytopenia",
+    "section": "Epidemiology"
+  },
+  {
+    "id": "eval_030",
+    "question": "Which other diagnoses can look like Swyer-James-MacLeod Syndrome?",
+    "relevant_ids": [
+      "statpearls_article-29791_31"
+    ],
+    "topic": "Swyer-James-MacLeod Syndrome",
+    "section": "Differential Diagnosis"
+  },
+  {
+    "id": "eval_031",
+    "question": "How is a hip fracture typically evaluated?",
+    "relevant_ids": [
+      "statpearls_article-22890_14"
+    ],
+    "topic": "Hip Fracture Overview",
+    "section": "Evaluation"
+  },
+  {
+    "id": "eval_032",
+    "question": "What complications can occur with Hyperopia?",
+    "relevant_ids": [
+      "statpearls_article-37141_65"
+    ],
+    "topic": "Hyperopia",
+    "section": "Complications"
+  },
+  {
+    "id": "eval_033",
+    "question": "What is known about how common Graves Disease is?",
+    "relevant_ids": [
+      "statpearls_article-22414_4"
+    ],
+    "topic": "Graves Disease",
+    "section": "Epidemiology"
+  },
+  {
+    "id": "eval_034",
+    "question": "What conditions should be considered in the differential for Phyllodes Tumor of the Breast?",
+    "relevant_ids": [
+      "statpearls_article-20225_17"
+    ],
+    "topic": "Phyllodes Tumor of the Breast",
+    "section": "Differential Diagnosis"
+  },
+  {
+    "id": "eval_035",
+    "question": "How does nasopharyngeal carcinoma develop at a biological level?",
+    "relevant_ids": [
+      "statpearls_article-93386_4"
+    ],
+    "topic": "Nasopharyngeal Carcinoma (NPC, Lymphoepithelioma)",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_036",
+    "question": "How is Undifferentiated Connective Tissue Disease typically managed or treated?",
+    "relevant_ids": [
+      "statpearls_article-87459_29"
+    ],
+    "topic": "Undifferentiated Connective Tissue Disease",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_037",
+    "question": "What is the pathophysiology of Pleural Friction Rub?",
+    "relevant_ids": [
+      "statpearls_article-36570_10"
+    ],
+    "topic": "Pleural Friction Rub",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_038",
+    "question": "What treatments are used for Cancer-Associated Thrombosis?",
+    "relevant_ids": [
+      "statpearls_article-86951_9"
+    ],
+    "topic": "Cancer-Associated Thrombosis",
+    "section": "Treatment / Management"
+  },
+  {
+    "id": "eval_039",
+    "question": "How does Cerebral Venous Sinus Thrombosis typically progress over time?",
+    "relevant_ids": [
+      "statpearls_article-19194_51"
+    ],
+    "topic": "Cerebral Venous Sinus Thrombosis",
+    "section": "Prognosis"
+  },
+  {
+    "id": "eval_040",
+    "question": "What are the main causes behind Strangulation Injuries?",
+    "relevant_ids": [
+      "statpearls_article-22565_11"
+    ],
+    "topic": "Strangulation Injuries",
+    "section": "Etiology"
+  },
+  {
+    "id": "eval_041",
+    "question": "How does Subdural Empyema develop at a biological level?",
+    "relevant_ids": [
+      "statpearls_article-29622_10"
+    ],
+    "topic": "Subdural Empyema",
+    "section": "Pathophysiology"
+  },
+  {
+    "id": "eval_042",
+    "question": "Which problems can develop as a result of Spinal Dysraphism and Myelomeningocele?",
+    "relevant_ids": [
+      "statpearls_article-29337_25"
+    ],
+    "topic": "Spinal Dysraphism and Myelomeningocele",
+    "section": "Complications"
+  },
+  {
+    "id": "eval_043",
+    "question": "What history and exam findings matter in Lichen Planus?",
+    "relevant_ids": [
+      "statpearls_article-24254_14"
+    ],
+    "topic": "Lichen Planus",
+    "section": "History and Physical"
+  },
+  {
+    "id": "eval_044",
+    "question": "What should clinicians look for when examining Subaxial Cervical Spine Fractures?",
+    "relevant_ids": [
+      "statpearls_article-19256_11"
+    ],
+    "topic": "Subaxial Cervical Spine Fractures",
+    "section": "History and Physical"
+  },
+  {
+    "id": "eval_045",
+    "question": "What history and exam findings matter in Congenital Muscular Dystrophy?",
+    "relevant_ids": [
+      "statpearls_article-19860_8"
+    ],
+    "topic": "Congenital Muscular Dystrophy",
+    "section": "History and Physical"
+  },
+  {
+    "id": "eval_046",
+    "question": "What is the mechanism of action of Anifrolumab?",
+    "relevant_ids": [
+      "statpearls_article-90088_4"
+    ],
+    "topic": "Anifrolumab",
+    "section": "Mechanism of Action"
+  },
+  {
+    "id": "eval_047",
+    "question": "What complications can occur with Adhesive Capsulitis (Frozen Shoulder)?",
+    "relevant_ids": [
+      "statpearls_article-17206_29"
+    ],
+    "topic": "Adhesive Capsulitis (Frozen Shoulder)",
+    "section": "Complications"
+  },
+  {
+    "id": "eval_048",
+    "question": "How do glycoprotein IIb/IIIa inhibitors work in the body?",
+    "relevant_ids": [
+      "statpearls_article-22338_6"
+    ],
+    "topic": "Glycoprotein IIb/IIIa Inhibitors",
+    "section": "Mechanism of Action"
+  },
+  {
+    "id": "eval_049",
+    "question": "Which other diagnoses can look like Babesiosis?",
+    "relevant_ids": [
+      "statpearls_article-18082_32"
+    ],
+    "topic": "Babesiosis",
+    "section": "Differential Diagnosis"
+  },
+  {
+    "id": "eval_050",
+    "question": "Who is most often affected by Rheumatic Heart Disease?",
+    "relevant_ids": [
+      "statpearls_article-28514_6"
+    ],
+    "topic": "Rheumatic Heart Disease",
+    "section": "Epidemiology"
+  }
+]

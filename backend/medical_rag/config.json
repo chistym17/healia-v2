@@ -1,0 +1,54 @@
+{
+  "version": "v1",
+  "description": "Frozen medical-corpus embedding + FAISS settings. Do not change without rebuilding the index.",
+  "embedding": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "dimension": 384,
+    "normalize": "l2",
+    "batch_size": 8,
+    "max_input_length": 256,
+    "truncate_chars": 900,
+    "endpoint_env": "EMBEDDING_SERVER",
+    "default_endpoint": "http://localhost:8080/embed",
+    "request_timeout_sec": 60,
+    "max_retries": 5
+  },
+  "faiss": {
+    "index_type": "IndexFlatIP",
+    "metric": "inner_product"
+  },
+  "bm25": {
+    "k1": 1.5,
+    "b": 0.75,
+    "top_k": 20
+  },
+  "hybrid": {
+    "faiss_top_k": 20,
+    "bm25_top_k": 20,
+    "rrf_k": 60,
+    "candidate_k": 30
+  },
+  "reranker": {
+    "model_id": "BAAI/bge-reranker-base",
+    "endpoint_env": "RERANK_SERVER",
+    "default_endpoint": "http://localhost:8081/rerank",
+    "candidate_k": 30,
+    "truncate_chars": 1500,
+    "request_timeout_sec": 60
+  },
+  "paths": {
+    "corpus": "../Data/knowledgeBase/normalized/corpus.jsonl",
+    "store_dir": "store",
+    "checkpoint_dir": "checkpoints",
+    "bm25_dir": "bm25"
+  },
+  "checkpoint": {
+    "save_every_batches": 50
+  },
+  "smoke_queries": [
+    "What are the symptoms of diabetes?",
+    "What are the adverse effects of colesevelam?",
+    "What causes cone snail toxicity?"
+  ],
+  "smoke_top_k": 5
+}

@@ -9,6 +9,7 @@ faiss-cpu
 numpy
 pandas
 requests
+rank_bm25
 tavily-python
 langchain-tavily
 gTTS
