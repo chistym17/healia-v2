@@ -75,6 +75,11 @@ GUIDANCE_MODEL = SUPERVISOR_MODEL
 GUIDANCE_TEMPERATURE = 0.3
 GUIDANCE_MAX_OUTPUT_TOKENS = 1024
 
+# --- Pipeline observability (logs + optional LiveKit data channel for UI) ---
+PIPELINE_EVENTS_ENABLED = True
+PIPELINE_EVENTS_LOG_JSON = True
+PIPELINE_EVENTS_TO_ROOM = True
+
 # Gemini voice instructions when SUPERVISOR_MODE == "controlled"
 CONTROLLED_VOICE_INSTRUCTIONS = """
 You are Healia's voice output only.

@@ -21,6 +21,12 @@ from livekit.plugins import assemblyai, google
 from livekit_agent import config
 from livekit_agent.consultation import handle_patient_turn
 from livekit_agent.events import log_event, start_session_log
+from livekit_agent.pipeline_events import (
+    emit_pipeline_event,
+    register_pipeline_publisher,
+    unregister_pipeline_publisher,
+)
+from livekit_agent.room_events import publish_pipeline_event_to_room
 from livekit_agent.state import ConsultationState
 from livekit_agent.supervisor import warm_supervisor
 from livekit_agent.turn_control import TurnCoordinator
@@ -312,6 +318,7 @@ def _attach_session_logs(
             session_id=session_id,
             detail=f"reason={reason}",
         )
+        unregister_pipeline_publisher(session_id)
 
 
 server = AgentServer()
@@ -332,6 +339,12 @@ async def healia_session(ctx: JobContext) -> None:
 
     await ctx.connect()
     log_event("VOICE", "room_connected", session_id=session_id, detail=f"room={room_name}")
+
+    if config.PIPELINE_EVENTS_ENABLED and config.PIPELINE_EVENTS_TO_ROOM:
+        register_pipeline_publisher(
+            session_id,
+            lambda event: publish_pipeline_event_to_room(ctx.room, event),
+        )
 
     stt = build_stt()
     consult_state = ConsultationState(session_id=session_id)

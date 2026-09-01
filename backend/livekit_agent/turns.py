@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 
 from livekit_agent.events import log_event, log_note
+from livekit_agent.pipeline_events import emit_pipeline_event
 
 OnFinalTurn = Callable[[str, str], Awaitable[None] | None]
 
@@ -83,6 +84,14 @@ class TurnAssembler:
             turn_id=turn_id,
             detail=f"chars={len(text)} source=commit",
         )
+        emit_pipeline_event(
+            session_id=self.session_id,
+            turn_id=turn_id,
+            phase="transcript",
+            status="completed",
+            message="Patient transcript ready",
+            data={"chars": len(text), "source": "commit"},
+        )
         log_note(
             self.session_id,
             f"FINAL PATIENT TURN ({turn_id}):\n{text}",
@@ -121,6 +130,14 @@ class TurnAssembler:
             session_id=self.session_id,
             turn_id=turn_id,
             detail=f"chars={len(text)}",
+        )
+        emit_pipeline_event(
+            session_id=self.session_id,
+            turn_id=turn_id,
+            phase="transcript",
+            status="completed",
+            message="Patient transcript ready",
+            data={"chars": len(text), "source": "stt_events"},
         )
         log_note(
             self.session_id,
