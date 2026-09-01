@@ -10,7 +10,8 @@ from livekit_agent.assessment_rag import search as assessment_search
 from livekit_agent.case_package import build_case_package
 from livekit_agent.controller import validate_and_apply
 from livekit_agent.events import log_event, log_note
-from livekit_agent.speech import speak_decision
+from livekit_agent.guidance_pipeline import run_knowledge_guidance
+from livekit_agent.speech import speak_decision, speak_guidance
 from livekit_agent.state import ConsultationState
 from livekit_agent.supervisor import run_supervisor
 from livekit_agent.turn_control import TurnCoordinator
@@ -52,7 +53,7 @@ async def handle_patient_turn(
             "retrieval_started",
             session_id=session_id,
             turn_id=turn_id,
-            detail="source=mock",
+            detail="source=medquad_assessment",
         )
         assessment_evidence = assessment_search(
             chief_complaint=snap.get("chief_complaint"),
@@ -66,7 +67,8 @@ async def handle_patient_turn(
             session_id=session_id,
             turn_id=turn_id,
             detail=(
-                f"source=mock pack={assessment_evidence.get('pack')} "
+                f"source={assessment_evidence.get('source')} "
+                f"pack={assessment_evidence.get('pack')} "
                 f"suggestions={len(assessment_evidence.get('suggested_questions') or [])}"
             ),
         )
@@ -169,6 +171,7 @@ async def handle_patient_turn(
         ),
     )
 
+    guidance_result = None
     if decision.action == "build_final_query":
         package = build_case_package(state)
         log_event(
@@ -190,6 +193,22 @@ async def handle_patient_turn(
                 ]
             ),
         )
+        if package.get("ready_for_retrieval"):
+            guidance_result = await run_knowledge_guidance(
+                package,
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            if guidance_result is not None:
+                log_note(
+                    session_id,
+                    "\n".join(
+                        [
+                            f"KNOWLEDGE GUIDANCE ({turn_id}):",
+                            json.dumps(guidance_result, ensure_ascii=False, indent=2),
+                        ]
+                    ),
+                )
 
     if config.SUPERVISOR_MODE == "log_only":
         log_event(
@@ -216,11 +235,18 @@ async def handle_patient_turn(
         "speech_requested",
         session_id=session_id,
         turn_id=turn_id,
-        detail=f"paraphrase={decision.allow_light_paraphrase}",
+        detail=(
+            f"paraphrase={decision.allow_light_paraphrase} "
+            f"source={'knowledge_guidance' if guidance_result and guidance_result.get('spoken_answer') else 'supervisor'}"
+        ),
     )
     speech_started = time.monotonic()
     try:
-        await speak_decision(session, decision)
+        guidance_payload = (guidance_result.get("guidance") or guidance_result)
+        if guidance_payload.get("spoken_answer"):
+            await speak_guidance(session, guidance_payload)
+        else:
+            await speak_decision(session, decision)
     except Exception as exc:
         log_event(
             "VOICE",

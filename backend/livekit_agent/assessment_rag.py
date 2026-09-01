@@ -1,12 +1,16 @@
-"""Part 4: mock assessment retrieval (interface only — no real RAG)."""
+"""Assessment retrieval: MedQuAD question index with mock fallback."""
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 _MOCKS_DIR = Path(__file__).resolve().parent / "mocks"
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
 
 _PACK_ALIASES = {
     "headache": "headache",
@@ -30,14 +34,13 @@ def _pick_pack_name(chief_complaint: str | None, patient_turn: str = "") -> str:
     return "default"
 
 
-def search(
+def _mock_search(
     *,
     chief_complaint: str | None,
     known_facts: dict[str, Any] | None,
     already_asked: list[str] | None,
     patient_turn: str = "",
 ) -> dict[str, Any]:
-    """Return canned assessment hints. Same signature shape as future real RAG."""
     asked = {t.strip() for t in (already_asked or []) if t and str(t).strip()}
     pack_name = _pick_pack_name(chief_complaint, patient_turn)
     pack = _load_pack(pack_name)
@@ -62,3 +65,29 @@ def search(
         "known_fact_keys": list((known_facts or {}).keys()),
         "already_asked": list(asked),
     }
+
+
+def search(
+    *,
+    chief_complaint: str | None,
+    known_facts: dict[str, Any] | None,
+    already_asked: list[str] | None,
+    patient_turn: str = "",
+) -> dict[str, Any]:
+    """Return assessment hints from MedQuAD index, or mock if index unavailable."""
+    try:
+        from medical_rag.assessment.search import search_questions
+
+        return search_questions(
+            chief_complaint=chief_complaint,
+            known_facts=known_facts,
+            already_asked=already_asked,
+            patient_turn=patient_turn,
+        )
+    except Exception:
+        return _mock_search(
+            chief_complaint=chief_complaint,
+            known_facts=known_facts,
+            already_asked=already_asked,
+            patient_turn=patient_turn,
+        )

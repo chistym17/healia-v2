@@ -19,6 +19,7 @@ backend/Data/
 backend/medical_rag/checkpoints/
 backend/medical_rag/store/
 backend/medical_rag/bm25/
+backend/medical_rag/assessment/store/
 
 # Local model caches (TEI / Hugging Face downloads)
 backend/models/

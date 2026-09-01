@@ -1,0 +1,23 @@
+{
+  "version": "v1",
+  "description": "Small MedQuAD assessment question index (separate from medical knowledge RAG).",
+  "embedding": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "dimension": 384,
+    "normalize": "l2",
+    "batch_size": 32,
+    "truncate_chars": 900,
+    "endpoint_env": "EMBEDDING_SERVER",
+    "default_endpoint": "http://localhost:8080/embed",
+    "request_timeout_sec": 60,
+    "max_retries": 5
+  },
+  "faiss": {
+    "index_type": "IndexFlatIP",
+    "metric": "inner_product"
+  },
+  "paths": {
+    "medquad": "../../Data/knowledgeBase/proccessed medquad/medquad_disease.json",
+    "store_dir": "store"
+  }
+}

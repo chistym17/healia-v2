@@ -1,4 +1,4 @@
-"""Part 5: final query / case package handoff (pre–full guidance RAG)."""
+"""Part 5: final query / case package handoff + knowledge guidance hook."""
 
 from __future__ import annotations
 

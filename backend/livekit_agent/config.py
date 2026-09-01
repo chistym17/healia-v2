@@ -67,6 +67,14 @@ SUPERVISOR_MAX_FOLLOWUPS = 8
 # --- Part 4: Mock assessment RAG (interface only) ---
 ASSESSMENT_RAG_ENABLED = True
 
+# --- Part 5: Knowledge RAG + grounded guidance (StatPearls corpus) ---
+KNOWLEDGE_RAG_ENABLED = True
+KNOWLEDGE_RAG_MODE = "rerank"  # faiss | bm25 | hybrid | rerank
+KNOWLEDGE_RAG_TOP_K = 5
+GUIDANCE_MODEL = SUPERVISOR_MODEL
+GUIDANCE_TEMPERATURE = 0.3
+GUIDANCE_MAX_OUTPUT_TOKENS = 1024
+
 # Gemini voice instructions when SUPERVISOR_MODE == "controlled"
 CONTROLLED_VOICE_INSTRUCTIONS = """
 You are Healia's voice output only.
