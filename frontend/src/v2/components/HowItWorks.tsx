@@ -43,19 +43,10 @@ function StepConversationPreview() {
         <div>
           <p className="text-[10px] font-medium text-healia-brand">Healia</p>
           <p className="mt-0.5 text-xs leading-relaxed text-healia-text-secondary">
-            Have you noticed any nausea, fever, or changes in your vision?
-          </p>
-        </div>
-        <div>
-          <p className="text-[10px] font-medium text-healia-text-muted">You</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-healia-text">
-            No fever. A little nausea sometimes.
+            Any nausea, fever, or vision changes?
           </p>
         </div>
       </div>
-      <p className="mt-4 border-t border-healia-border-subtle pt-3 text-[10px] text-healia-text-muted">
-        Questions adapt based on your answers
-      </p>
     </div>
   );
 }
@@ -90,8 +81,7 @@ function StepGuidancePreview() {
             Summary
           </p>
           <p className="mt-1 text-xs leading-relaxed text-healia-text-secondary">
-            Possible orthostatic symptoms — further evaluation may help if
-            persistent.
+            Possible orthostatic symptoms. See a clinician if persistent.
           </p>
         </div>
         <div className="rounded-md border border-healia-danger/15 bg-healia-danger/[0.04] px-2.5 py-2">
@@ -99,7 +89,7 @@ function StepGuidancePreview() {
             When to seek care
           </p>
           <p className="mt-0.5 text-[10px] leading-relaxed text-healia-text-secondary">
-            Fainting, chest pain, or severe headache — seek care promptly.
+            Fainting, chest pain, or severe headache.
           </p>
         </div>
       </div>
@@ -110,23 +100,20 @@ function StepGuidancePreview() {
 const steps = [
   {
     phase: "Start",
-    title: "Tell Healia what's going on",
-    description:
-      "Start by voice. Describe your symptoms the way you would to a clinician — no forms, no searching symptom lists.",
+    title: "Describe your symptoms",
+    description: "Talk by voice. No forms.",
     preview: <StepVoicePreview />,
   },
   {
     phase: "Consultation",
-    title: "Answer a focused conversation",
-    description:
-      "Healia asks relevant follow-ups and checks warning signs. It adapts to your answers — this is a consultation, not a static questionnaire.",
+    title: "Answer follow-up questions",
+    description: "Adaptive questions based on your answers.",
     preview: <StepConversationPreview />,
   },
   {
     phase: "Guidance",
-    title: "Get structured next steps",
-    description:
-      "Receive a clear summary, practical advice, warning signs, when to seek care, and the medical references behind the guidance.",
+    title: "Get clear next steps",
+    description: "Summary, actions, warnings, and references.",
     preview: <StepGuidancePreview />,
   },
 ];
@@ -140,12 +127,8 @@ export function HowItWorks() {
             Your journey
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-healia-text md:text-4xl">
-            From &ldquo;I don&apos;t feel well&rdquo; to clear guidance
+            How it works
           </h2>
-          <p className="mt-4 text-lg leading-relaxed text-healia-text-secondary">
-            One continuous flow — speak, answer a few questions, and know what
-            to do next.
-          </p>
         </div>
 
         <ol className="relative mt-16 md:mt-20">
@@ -185,7 +168,7 @@ export function HowItWorks() {
                   <h3 className="mt-2 text-xl font-medium text-healia-text md:text-2xl">
                     {step.title}
                   </h3>
-                  <p className="mt-3 text-base leading-relaxed text-healia-text-secondary">
+                  <p className="mt-2 text-sm text-healia-text-secondary">
                     {step.description}
                   </p>
                 </div>
