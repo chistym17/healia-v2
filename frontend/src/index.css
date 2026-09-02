@@ -101,3 +101,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .v2-root {
+    @apply font-sans antialiased;
+    background-color: #F8F8F5;
+    color: #17201D;
+  }
+}

@@ -18,7 +18,30 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+			},
+			maxWidth: {
+				content: '720px',
+				page: '1200px',
+			},
 			colors: {
+				healia: {
+					bg: '#F8F8F5',
+					'bg-secondary': '#FFFFFF',
+					text: '#17201D',
+					'text-secondary': '#5F6965',
+					'text-muted': '#87918D',
+					brand: '#155E59',
+					'brand-dark': '#104944',
+					'brand-light': '#E6F1EF',
+					border: '#DDE3E0',
+					'border-subtle': '#E9EDEB',
+					success: '#2F6F55',
+					warning: '#9A6A20',
+					danger: '#B54747',
+					info: '#356A82',
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

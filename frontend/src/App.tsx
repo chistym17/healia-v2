@@ -13,6 +13,8 @@ import Features from "./pages/Features";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import LiveVoicePage from "./pages/LiveVoicePage";
+import HomePage from "@/v2/pages/HomePage";
+import { PlaceholderPage } from "@/v2/pages/PlaceholderPage";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,34 @@ const App = () => (
           <Route path="/live-voice" element={<LiveVoicePage />} />
           <Route path="/features" element={<Features />} />
           <Route path="/about" element={<About />} />
+          <Route path="/v2" element={<HomePage />} />
+          <Route
+            path="/v2/consultation"
+            element={
+              <PlaceholderPage
+                title="Start Consultation"
+                description="The consultation flow is coming next. This page will prepare you before starting a voice health assessment."
+              />
+            }
+          />
+          <Route
+            path="/v2/about"
+            element={
+              <PlaceholderPage
+                title="About Healia"
+                description="Learn about what Healia is, its limitations, and how it helps you understand your health."
+              />
+            }
+          />
+          <Route
+            path="/v2/privacy"
+            element={
+              <PlaceholderPage
+                title="Privacy"
+                description="Information about how Healia handles your data and protects your privacy."
+              />
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
