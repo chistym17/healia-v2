@@ -1,0 +1,351 @@
+---
+alwaysApply: true
+---
+
+# Healia Frontend Development Rules
+
+## Project
+
+Healia is a React frontend for a health consultation application.
+
+The frontend must follow:
+
+- `PRODUCT.md` for product scope
+- `UX.md` for user experience
+- `DESIGN.md` for visual design
+
+These files are the source of truth.
+
+## Technology
+
+Use the existing project stack.
+
+Prefer:
+
+- React
+- Vite
+- Tailwind CSS
+- Existing project dependencies
+
+Do not introduce a new framework or library unless there is a clear technical reason.
+
+Before installing a dependency, check whether the functionality can be implemented with the existing stack.
+
+## Architecture
+
+Keep the frontend structure simple and understandable.
+
+Prefer:
+
+```text id="z0ydlq"
+src/
+├── components/
+├── pages/
+├── layouts/
+├── hooks/
+├── services/
+├── utils/
+└── assets/
+```
+
+Do not create folders purely for organizational appearance.
+
+## Components
+
+Build reusable components for repeated UI patterns.
+
+Examples:
+
+- Button
+- Input
+- Modal
+- Alert
+- StatusIndicator
+- VoiceControl
+- Transcript
+- ResultSection
+- ReferenceList
+
+Do not create a component for every small HTML fragment.
+
+Avoid both extremes:
+
+- one giant component
+- hundreds of tiny unnecessary components
+
+## Reuse
+
+Before creating a new component:
+
+1. Search the existing codebase.
+2. Check whether an existing component can be extended.
+3. Reuse existing styles and patterns.
+4. Only create a new component when it provides meaningful reuse or clarity.
+
+Do not duplicate UI code unnecessarily.
+
+## Styling
+
+Use Tailwind consistently with the design system.
+
+Prefer existing design tokens/classes over arbitrary values.
+
+Keep styling readable.
+
+Avoid excessive inline styles.
+
+Do not introduce one-off colors that conflict with `DESIGN.md`.
+
+Do not use gradients unless explicitly approved.
+
+## Layout
+
+Use responsive layouts from the beginning.
+
+Prefer:
+
+- flex
+- grid
+- max-width containers
+- consistent spacing
+- responsive Tailwind utilities
+
+Avoid fixed dimensions that break on smaller screens.
+
+Do not design only for desktop and retrofit mobile later.
+
+## State
+
+UI state should clearly reflect the actual application state.
+
+For the consultation, support states such as:
+
+```text id="8s4j2p"
+ready
+listening
+thinking
+speaking
+error
+completed
+```
+
+Do not create fake UI states that do not correspond to real application behavior.
+
+## API Integration
+
+Keep API calls separate from presentation components when practical.
+
+Prefer:
+
+```text id="8p8v2h"
+Component
+   ↓
+Hook / Service
+   ↓
+API
+```
+
+Do not scatter API requests throughout the UI.
+
+Handle:
+
+- Loading
+- Success
+- Error
+- Empty states
+
+explicitly.
+
+Never expose API keys or secrets in frontend code.
+
+## Voice Integration
+
+Keep voice-related logic separate from visual components where possible.
+
+The UI should receive clear state information such as:
+
+```text id="y5e2u1"
+isListening
+isSpeaking
+isThinking
+error
+```
+
+The visual component should render the state rather than contain the entire voice implementation.
+
+## Loading
+
+Every asynchronous operation must have an intentional loading state.
+
+Avoid:
+
+- blank screens
+- unexplained spinners
+- fake progress
+- frozen buttons
+
+Disable actions when necessary to prevent duplicate requests.
+
+## Error Handling
+
+Handle errors at the appropriate level.
+
+Users should see friendly messages.
+
+Never display:
+
+- stack traces
+- raw API errors
+- internal service names
+- debugging information
+
+Log technical details only where appropriate for development.
+
+## Accessibility
+
+Use semantic HTML.
+
+Prefer:
+
+```html
+button nav main section header footer form label
+```
+
+over generic `div` elements when appropriate.
+
+Every interactive element must be keyboard accessible.
+
+Images require meaningful `alt` text when they convey information.
+
+Icon-only buttons must have accessible labels.
+
+## Performance
+
+Avoid unnecessary:
+
+- re-renders
+- large dependencies
+- duplicated API calls
+- huge assets
+- expensive animations
+
+Do not prematurely optimize.
+
+First make the implementation correct and simple.
+
+## Security
+
+Never put secrets in:
+
+- React components
+- `.env` files committed to Git
+- frontend source
+- client-side API configuration
+
+Only expose variables intentionally designed to be public.
+
+Validate important assumptions on the backend.
+
+## Dependencies
+
+Before adding a package:
+
+1. Check existing dependencies.
+2. Check whether native browser functionality is sufficient.
+3. Check whether an existing utility can solve the problem.
+4. Add the dependency only when it provides meaningful value.
+
+Do not add libraries for trivial functionality.
+
+## Code Quality
+
+Prefer code that is:
+
+- readable
+- explicit
+- maintainable
+- predictable
+
+Avoid clever abstractions that make simple UI difficult to understand.
+
+Use clear names.
+
+Keep components reasonably sized.
+
+Remove dead code.
+
+Do not leave debugging code in production.
+
+## Animation
+
+Use animation only when it improves understanding or feedback.
+
+Keep animations subtle.
+
+Respect:
+
+```css
+prefers-reduced-motion
+```
+
+Do not add decorative animations simply to make the interface feel more dynamic.
+
+## Responsive Behavior
+
+Every new component must be checked at:
+
+- Mobile
+- Tablet
+- Desktop
+
+Do not allow:
+
+- horizontal overflow
+- clipped content
+- unusable controls
+- unreadable text
+- broken layouts
+
+## Before Completing a Feature
+
+Check:
+
+### Product
+
+Does it belong in Healia's current scope?
+
+### UX
+
+Does it follow `UX.md`?
+
+### Design
+
+Does it follow `DESIGN.md`?
+
+### Code
+
+Is it reusable where appropriate?
+
+### Mobile
+
+Does it work on small screens?
+
+### Accessibility
+
+Can users navigate and understand it accessibly?
+
+### Errors
+
+What happens when the operation fails?
+
+### Loading
+
+What does the user see while waiting?
+
+If any of these are unclear, fix them before considering the feature complete.
+
+## Core Rule
+
+Build the **simplest implementation that feels polished**.
+
+Do not add complexity unless it solves a real problem.

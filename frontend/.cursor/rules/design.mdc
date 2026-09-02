@@ -1,0 +1,123 @@
+---
+alwaysApply: true
+---
+
+# Healia Frontend Design Rules
+
+When building or modifying the Healia frontend, always follow `DESIGN.md` as the visual source of truth.
+
+## Design
+
+- Keep the interface simple, classy, calm, and professional.
+- Prioritize clarity and usability over decoration.
+- Use the colors, typography, spacing, radius, borders, and visual rules defined in `DESIGN.md`.
+- Use a warm off-white background and deep teal/forest green as the primary brand direction.
+- Use subtle borders and very light elevation.
+- Keep layouts spacious but not empty.
+- Keep content widths controlled and comfortable to read.
+
+## Never Use
+
+- Purple or indigo as the primary visual style.
+- AI-style gradients.
+- Neon effects.
+- Glassmorphism.
+- Heavy shadows.
+- Giant glowing orbs.
+- Excessive rounded cards.
+- Excessive pill-shaped elements.
+- Generic three-column feature-card layouts.
+- Decorative AI illustrations.
+- Stock medical imagery.
+- Excessive animation.
+- Unnecessary icons.
+- Every section inside a card.
+- Every heading with an icon.
+- Large unnecessary hero typography.
+
+## Components
+
+Before creating a new component:
+
+1. Check whether an existing component can be reused.
+2. Reuse existing components when possible.
+3. Keep components small and focused.
+4. Do not create visually different versions of the same component without a real UX reason.
+5. Keep spacing and styling consistent across screens.
+
+## Buttons
+
+- Use one clear primary action.
+- Use descriptive action labels.
+- Keep button radius moderate.
+- Do not make every action a primary button.
+- Do not use excessive pill-shaped buttons.
+
+## Cards
+
+Use cards only when they provide meaningful grouping.
+
+Prefer:
+
+- spacing
+- typography
+- borders
+- subtle background differences
+
+over creating more cards.
+
+## Voice UI
+
+The voice interface is a core part of Healia.
+
+- Keep the voice interface visually calm.
+- Clearly communicate Listening, Thinking, Speaking, Ready, and Error states.
+- Use subtle state transitions.
+- Never create a giant glowing AI orb.
+- Do not use distracting animations.
+- Always provide understandable text describing the current state.
+
+## Medical Information
+
+Medical warnings and important information must have strong visual hierarchy.
+
+- Do not hide important warnings.
+- Do not communicate urgency through color alone.
+- Keep medical text readable.
+- Use plain language.
+- Keep disclaimers visible but secondary.
+
+## Responsive Design
+
+Build mobile-first.
+
+Ensure:
+
+- No horizontal scrolling.
+- Comfortable touch targets.
+- Readable text.
+- Simple mobile navigation.
+- Voice controls are easy to access.
+- Results remain easy to scan.
+
+Desktop layouts should not simply stretch the mobile layout.
+
+## Accessibility
+
+Always:
+
+- Use semantic HTML.
+- Provide accessible labels.
+- Support keyboard navigation.
+- Provide visible focus states.
+- Maintain sufficient contrast.
+- Respect `prefers-reduced-motion`.
+- Never rely only on color to communicate meaning.
+
+## Implementation Rule
+
+Do not introduce a new visual pattern unless it is necessary.
+
+If a design decision is not explicitly defined in the codebase, choose the simplest option that matches the existing Healia visual language.
+
+Before considering a frontend task complete, check the implementation against `DESIGN.md`.
