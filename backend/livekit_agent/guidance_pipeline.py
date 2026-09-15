@@ -42,6 +42,7 @@ async def run_knowledge_guidance(
         return None
 
     t0 = time.monotonic()
+    rag_mode = config.effective_knowledge_rag_mode()
     emit_pipeline_event(
         session_id=session_id,
         turn_id=turn_id,
@@ -49,7 +50,9 @@ async def run_knowledge_guidance(
         status="started",
         message="Searching medical knowledge index",
         data={
-            "mode": config.KNOWLEDGE_RAG_MODE,
+            "mode": rag_mode,
+            "requested_mode": config.KNOWLEDGE_RAG_MODE,
+            "rerank_enabled": config.is_rerank_enabled(),
             "top_k": config.KNOWLEDGE_RAG_TOP_K,
         },
     )
@@ -58,7 +61,10 @@ async def run_knowledge_guidance(
         "knowledge_retrieval_started",
         session_id=session_id,
         turn_id=turn_id,
-        detail=f"mode={config.KNOWLEDGE_RAG_MODE} top_k={config.KNOWLEDGE_RAG_TOP_K}",
+        detail=(
+            f"mode={rag_mode} requested={config.KNOWLEDGE_RAG_MODE} "
+            f"rerank={config.is_rerank_enabled()} top_k={config.KNOWLEDGE_RAG_TOP_K}"
+        ),
     )
 
     retrieval = await asyncio.to_thread(

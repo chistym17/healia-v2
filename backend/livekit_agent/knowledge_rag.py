@@ -38,6 +38,8 @@ def retrieve_knowledge(
     top_k: int = 5,
 ) -> dict[str, Any]:
     """Retrieve grounded medical reference chunks for a final consultation query."""
+    from livekit_agent.config import effective_knowledge_rag_mode
+
     query = (query or "").strip()
     mode = (mode or "rerank").lower().strip()
     if not query:
@@ -49,11 +51,13 @@ def retrieve_knowledge(
             "error": "empty_query",
         }
 
-    effective_mode = mode
+    effective_mode = effective_knowledge_rag_mode(mode)
     fallback_note: str | None = None
+    if mode in ("rerank", "hybrid_rerank") and effective_mode != mode:
+        fallback_note = "rerank_disabled_via_env"
 
     try:
-        if _needs_bm25(mode):
+        if _needs_bm25(effective_mode) or _needs_bm25(mode):
             try:
                 retriever = _get_retriever(load_bm25=True)
             except Exception as exc:

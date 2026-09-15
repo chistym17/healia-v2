@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from reranker import rerank, resolve_rerank_url
+from reranker import is_rerank_enabled, rerank, resolve_rerank_url
 
 CONFIG_PATH = ROOT / "config.json"
 TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
@@ -293,6 +293,9 @@ class MedicalRetriever:
         if mode == "hybrid":
             return self.search_hybrid(query, top_k=top_k)
         if mode in ("rerank", "hybrid_rerank"):
+            # Optional via RERANK_ENABLED=false → hybrid (no cross-encoder).
+            if not is_rerank_enabled():
+                return self.search_hybrid(query, top_k=top_k)
             return self.search_rerank(query, top_k=top_k)
         raise ValueError(
             f"Unknown mode {mode!r}; use faiss|bm25|hybrid|rerank"
