@@ -8,25 +8,25 @@
   ],
   "suggested_questions": [
     {
-      "topic": "duration",
-      "question": "How long have you had this headache?"
+      "topic": "headache_location",
+      "question": "Where is the headache — forehead, temples, one side, or behind the eyes?"
     },
     {
-      "topic": "location",
-      "question": "Where is the pain — forehead, temples, or behind the eyes?"
+      "topic": "headache_onset",
+      "question": "Did this headache start suddenly, or build up gradually?"
     },
     {
-      "topic": "severity",
-      "question": "On a scale of 1 to 10, how bad is the pain?"
+      "topic": "headache_severity",
+      "question": "On a scale of 1 to 10, how bad is the headache right now?"
     },
     {
-      "topic": "associated_symptoms",
-      "question": "Any nausea, sensitivity to light, or vision changes?"
+      "topic": "headache_associated",
+      "question": "With the headache, do you have nausea, sensitivity to light or sound, or vision changes?"
     },
     {
-      "topic": "onset_quality",
-      "question": "Did it start suddenly, or build gradually?"
+      "topic": "headache_duration",
+      "question": "How long have you had this headache, and is it constant or coming in waves?"
     }
   ],
-  "notes": "Mock assessment pack for Part 4 — not real medical evidence."
+  "notes": "Mock assessment pack for headache complaints."
 }

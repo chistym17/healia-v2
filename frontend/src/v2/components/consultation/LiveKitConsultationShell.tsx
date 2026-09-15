@@ -62,26 +62,34 @@ function LiveKitBridge({ room }: { room: Room }) {
   const { send: sendChat } = useChat();
   const navigatedToProcessing = useRef(false);
   const guidanceStored = useRef(false);
+  const navigatedToResults = useRef(false);
   const guidanceRef = useRef<GuidanceResult | null>(null);
-  const finishedFlow = useRef(false);
+  const disconnectedAfterSpeech = useRef(false);
   const speechFallbackTimer = useRef<number | null>(null);
 
-  const finishAndShowResults = () => {
-    if (finishedFlow.current) return;
-    finishedFlow.current = true;
-    if (speechFallbackTimer.current != null) {
-      window.clearTimeout(speechFallbackTimer.current);
-      speechFallbackTimer.current = null;
-    }
+  const openResultsNow = () => {
+    if (navigatedToResults.current) return;
+    navigatedToResults.current = true;
     const save = guidanceRef.current
       ? onCompletePersist(guidanceRef.current)
       : Promise.resolve();
     void save.finally(() => {
       goToResults();
-      window.setTimeout(() => {
-        endLiveSession();
-      }, 500);
     });
+  };
+
+  const disconnectAfterSpeech = () => {
+    if (disconnectedAfterSpeech.current) return;
+    disconnectedAfterSpeech.current = true;
+    if (speechFallbackTimer.current != null) {
+      window.clearTimeout(speechFallbackTimer.current);
+      speechFallbackTimer.current = null;
+    }
+    markProcessingStep("results", "completed");
+    // Keep Results mounted; tear down LiveKit after audio finishes.
+    window.setTimeout(() => {
+      endLiveSession();
+    }, 400);
   };
 
   useEffect(() => {
@@ -178,7 +186,7 @@ function LiveKitBridge({ room }: { room: Room }) {
       goToProcessing();
     }
 
-    // Store guidance but keep LiveKit open for spoken reply
+    // Guidance ready → show Results immediately; keep LiveKit for spoken summary
     if (isGuidanceReadyEvent(event) && !guidanceStored.current) {
       const results = event.data?.results as Record<string, unknown> | undefined;
       const mapped = mapBackendGuidanceToResult(results ?? null);
@@ -200,17 +208,18 @@ function LiveKitBridge({ room }: { room: Room }) {
           });
         }
 
-        // Fallback if speech.completed never arrives
+        openResultsNow();
+
+        // If speech.completed never arrives, still disconnect later
         speechFallbackTimer.current = window.setTimeout(() => {
-          finishAndShowResults();
+          disconnectAfterSpeech();
         }, SPEECH_FALLBACK_MS);
       }
     }
 
-    // After Healia finishes speaking → Results, then disconnect
+    // Spoken summary finished → disconnect LiveKit (Results already open)
     if (isSpeechCompleteEvent(event) && guidanceStored.current) {
-      markProcessingStep("results", "completed");
-      finishAndShowResults();
+      disconnectAfterSpeech();
     }
   };
 

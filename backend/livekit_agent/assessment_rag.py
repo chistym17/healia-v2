@@ -16,6 +16,10 @@ _PACK_ALIASES = {
     "headache": "headache",
     "migraine": "headache",
     "head pain": "headache",
+    "fever": "fever",
+    "high temperature": "fever",
+    "temperature": "fever",
+    "chills": "fever",
 }
 
 
@@ -46,14 +50,19 @@ def _mock_search(
     pack = _load_pack(pack_name)
 
     suggested = []
+    focus = (chief_complaint or patient_turn or pack_name or "symptoms").strip()
     for item in pack.get("suggested_questions") or []:
         topic = str(item.get("topic") or "").strip()
         if not topic or topic in asked:
             continue
+        question = str(item.get("question") or "").strip()
         suggested.append(
             {
                 "topic": topic,
-                "question": str(item.get("question") or "").strip(),
+                "theme": topic,
+                "question_type": topic,
+                "medical_topic": focus,
+                "question": question,
             }
         )
 

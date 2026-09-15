@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from questions import TYPE_PRIORITY, to_conversational, type_rank
+from questions import TYPE_PRIORITY, TYPE_THEMES, to_conversational, type_rank
 
 STORE_DIR = ROOT / "store"
 CONFIG_PATH = ROOT / "config.json"
@@ -231,9 +231,15 @@ def search_questions(
             {
                 "topic": _topic_key(meta),
                 "canonical_question": canonical,
-                "question": to_conversational(qtype, medical_topic),
+                "question": to_conversational(
+                    qtype,
+                    medical_topic,
+                    chief_complaint=chief_complaint,
+                    patient_turn=patient_turn,
+                ),
                 "medical_topic": medical_topic,
                 "question_type": qtype,
+                "theme": TYPE_THEMES.get(qtype, qtype),
                 "score": float(score),
                 "id": row.get("id", ""),
             }
@@ -249,7 +255,14 @@ def search_questions(
         "pack": top_topic,
         "red_flag_hints": GENERIC_RED_FLAGS,
         "suggested_questions": [
-            {"topic": s["topic"], "question": s["question"]} for s in suggested
+            {
+                "topic": s["topic"],
+                "theme": s.get("theme") or TYPE_THEMES.get(s["question_type"], s["question_type"]),
+                "question_type": s["question_type"],
+                "medical_topic": s["medical_topic"],
+                "question": s["question"],
+            }
+            for s in suggested
         ],
         "known_fact_keys": list((known_facts or {}).keys()),
         "already_asked": list(asked),

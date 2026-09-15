@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Volume2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ConsultationLayout } from "@/v2/components/consultation/ConsultationLayout";
 import { GuidanceResults } from "@/v2/components/consultation/GuidanceResults";
@@ -7,7 +8,16 @@ import { useConsultation } from "@/v2/context/ConsultationContext";
 
 export default function ResultsPage() {
   const navigate = useNavigate();
-  const { guidance, resetConsultation } = useConsultation();
+  const {
+    guidance,
+    resetConsultation,
+    voiceState,
+    liveSessionActive,
+  } = useConsultation();
+
+  const isSpeaking =
+    liveSessionActive &&
+    (voiceState === "speaking" || voiceState === "thinking");
 
   useEffect(() => {
     if (!guidance) {
@@ -33,6 +43,12 @@ export default function ResultsPage() {
             <h1 className="mt-1 text-xl font-semibold tracking-tight text-healia-text md:text-2xl">
               Your health guidance
             </h1>
+            {isSpeaking ? (
+              <p className="mt-2 inline-flex items-center gap-2 text-sm text-healia-text-secondary">
+                <Volume2 className="h-4 w-4 animate-pulse text-healia-brand" strokeWidth={1.75} />
+                Healia is reading a short summary…
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <V2Button to="/" variant="secondary" className="px-4 py-2 text-sm">
