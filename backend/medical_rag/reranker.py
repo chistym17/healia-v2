@@ -14,6 +14,24 @@ from dotenv import load_dotenv
 
 DEFAULT_RERANK_URL = "http://localhost:8081/rerank"
 
+# Env: RERANK_ENABLED=true|false (default true). When false, hybrid retrieval is used.
+_TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
+
+
+def is_rerank_enabled() -> bool:
+    """Whether the BGE cross-encoder reranker should be called."""
+    load_dotenv()
+    raw = os.getenv("RERANK_ENABLED")
+    if raw is None or not str(raw).strip():
+        return True
+    value = str(raw).strip().lower()
+    if value in _FALSY:
+        return False
+    if value in _TRUTHY:
+        return True
+    return True
+
 
 def resolve_rerank_url(cfg: dict | None = None) -> str:
     load_dotenv()

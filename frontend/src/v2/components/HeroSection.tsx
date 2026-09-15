@@ -42,8 +42,8 @@ export function HeroSection() {
             </ul>
 
             <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <V2Button to="/v2/consultation">Start Consultation</V2Button>
-              <V2Button to="/v2/about" variant="secondary">
+              <V2Button to="/consultation">Start Consultation</V2Button>
+              <V2Button to="/about" variant="secondary">
                 Learn more
               </V2Button>
             </div>

@@ -1,9 +1,19 @@
 """Tunable LiveKit + Gemini Live settings.
 
 Edit values here while testing. Agent code should only read from this module.
+
+Env overrides (optional):
+  RERANK_ENABLED=true|false  — turn BGE cross-encoder on/off (default true).
+                               When false and mode is rerank, falls back to hybrid.
 """
 
 from __future__ import annotations
+
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Model ---
 MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
@@ -75,10 +85,56 @@ GUIDANCE_MODEL = SUPERVISOR_MODEL
 GUIDANCE_TEMPERATURE = 0.3
 GUIDANCE_MAX_OUTPUT_TOKENS = 1024
 
+
+def _env_bool(name: str, default: bool = True) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return default
+    value = str(raw).strip().lower()
+    if value in ("0", "false", "no", "off"):
+        return False
+    if value in ("1", "true", "yes", "on"):
+        return True
+    return default
+
+
+# BGE cross-encoder (:8081). Set RERANK_ENABLED=false to skip without changing mode.
+# Read via is_rerank_enabled() / effective_knowledge_rag_mode() so .env is honored at call time.
+
+
+def is_rerank_enabled() -> bool:
+    return _env_bool("RERANK_ENABLED", True)
+
+
+# Snapshot for logging at import; prefer is_rerank_enabled() at runtime.
+RERANK_ENABLED = is_rerank_enabled()
+
+
+def effective_knowledge_rag_mode(mode: str | None = None) -> str:
+    """Resolve retrieval mode; demote rerank → hybrid when RERANK_ENABLED=false."""
+    resolved = (mode or KNOWLEDGE_RAG_MODE or "hybrid").lower().strip()
+    if resolved in ("rerank", "hybrid_rerank") and not is_rerank_enabled():
+        return "hybrid"
+    return resolved
+
 # --- Pipeline observability (logs + optional LiveKit data channel for UI) ---
 PIPELINE_EVENTS_ENABLED = True
 PIPELINE_EVENTS_LOG_JSON = True
 PIPELINE_EVENTS_TO_ROOM = True
+# Mirror RAG/guidance phases to FastAPI stdout (separate from voice agent logs).
+PIPELINE_EVENTS_TO_API = _env_bool("PIPELINE_EVENTS_TO_API", True)
+HEALIA_API_BASE_URL = (
+    os.getenv("HEALIA_API_URL") or "http://127.0.0.1:8000"
+).rstrip("/")
+# Phases mirrored to FastAPI — not voice turn/speech/supervisor chatter.
+PIPELINE_API_MIRROR_PHASES = frozenset(
+    {
+        "assessment_rag",
+        "case_package",
+        "knowledge_rag",
+        "guidance",
+    }
+)
 
 # Gemini voice instructions when SUPERVISOR_MODE == "controlled"
 CONTROLLED_VOICE_INSTRUCTIONS = """

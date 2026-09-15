@@ -8,6 +8,8 @@ type V2ButtonProps = {
   variant?: "primary" | "secondary" | "text";
   className?: string;
   onClick?: () => void;
+  type?: "button" | "submit";
+  disabled?: boolean;
 };
 
 const variantClasses = {
@@ -24,9 +26,11 @@ export function V2Button({
   variant = "primary",
   className,
   onClick,
+  type = "button",
+  disabled = false,
 }: V2ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center rounded-lg px-6 py-3 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    "inline-flex items-center justify-center rounded-lg px-6 py-3 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
     variantClasses[variant],
     className,
   );
@@ -40,7 +44,7 @@ export function V2Button({
   }
 
   return (
-    <button type="button" className={classes} onClick={onClick}>
+    <button type={type} className={classes} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   );

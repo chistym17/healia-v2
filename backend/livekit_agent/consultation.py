@@ -47,7 +47,10 @@ async def handle_patient_turn(
         phase="turn",
         status="started",
         message="Patient turn received — starting consultation pipeline",
-        data={"patient_text_chars": len(patient_text)},
+        data={
+            "patient_text_chars": len(patient_text),
+            "patient_text": patient_text[:800],
+        },
     )
 
     log_event(
@@ -196,6 +199,7 @@ async def handle_patient_turn(
             "confidence": decision.confidence,
             "followup_topic": decision.followup_topic,
             "reason": decision.reason,
+            "spoken_utterance": (decision.spoken_utterance or "")[:800],
         },
         elapsed_ms=elapsed_ms,
     )

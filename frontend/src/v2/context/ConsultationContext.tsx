@@ -1,0 +1,392 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import type { ConsultationError } from "@/v2/lib/consultationErrors";
+import { LIVE_PROCESSING_STEPS } from "@/v2/lib/pipeline";
+import {
+  completeSession,
+  createSession,
+  titleFromTranscript,
+  transcriptToStored,
+  updateSession,
+} from "@/v2/lib/sessionsApi";
+import { mapGuidanceToStoredResults } from "@/v2/lib/guidanceMapper";
+import type {
+  GuidanceResult,
+  ProcessingStep,
+  TranscriptMessage,
+  VoiceState,
+} from "@/v2/types/consultation";
+
+type ConsultationContextValue = {
+  voiceState: VoiceState;
+  transcript: TranscriptMessage[];
+  guidance: GuidanceResult | null;
+  isListening: boolean;
+  isProcessingTurn: boolean;
+  sessionStarted: boolean;
+  liveSessionActive: boolean;
+  liveSessionKey: number;
+  micEnabled: boolean;
+  connectionError: ConsultationError | null;
+  processingSteps: ProcessingStep[];
+  completedStepIds: string[];
+  activeStepId: string | null;
+  guidanceReady: boolean;
+  dbSessionId: string | null;
+  startSession: () => void;
+  setVoiceState: (state: VoiceState) => void;
+  setMicEnabled: (enabled: boolean) => void;
+  toggleListening: () => void;
+  appendMessage: (message: TranscriptMessage) => void;
+  markProcessingStep: (stepId: string, status: "active" | "completed") => void;
+  setGuidanceResult: (result: GuidanceResult) => void;
+  goToProcessing: () => void;
+  goToResults: () => void;
+  endConsultation: () => void;
+  endLiveSession: () => void;
+  stopAgent: () => void;
+  resetConsultation: () => void;
+  setConnectionError: (error: ConsultationError | null) => void;
+  /** Show a friendly error and tear down LiveKit so nothing keeps retrying. */
+  failConsultation: (error: ConsultationError) => void;
+  sendTextMessage: (text: string) => Promise<void>;
+  registerTextSender: (sender: ((text: string) => Promise<void>) | null) => void;
+  registerMicToggle: (toggle: ((enabled: boolean) => Promise<void>) | null) => void;
+  onLiveKitRoomReady: (roomName: string) => Promise<void>;
+  onProcessingPersist: () => Promise<void>;
+  onCompletePersist: (guidance: GuidanceResult) => Promise<void>;
+};
+
+const ConsultationContext = createContext<ConsultationContextValue | null>(
+  null,
+);
+
+function createId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function ConsultationProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const [voiceState, setVoiceState] = useState<VoiceState>("ready");
+  const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
+  const [guidance, setGuidance] = useState<GuidanceResult | null>(null);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [liveSessionActive, setLiveSessionActive] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [connectionError, setConnectionError] =
+    useState<ConsultationError | null>(null);
+  const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [guidanceReady, setGuidanceReady] = useState(false);
+  const [liveSessionKey, setLiveSessionKey] = useState(0);
+  const [dbSessionId, setDbSessionId] = useState<string | null>(null);
+  const dbSessionIdRef = useRef<string | null>(null);
+  const textSenderRef = useRef<((text: string) => Promise<void>) | null>(null);
+  const micToggleRef = useRef<((enabled: boolean) => Promise<void>) | null>(
+    null,
+  );
+  const seenTranscriptKeys = useRef(new Set<string>());
+
+  const isListening = voiceState === "listening" && micEnabled;
+  const isProcessingTurn =
+    voiceState === "thinking" || voiceState === "speaking";
+
+  const appendMessage = useCallback((message: TranscriptMessage) => {
+    const key = `${message.role}:${message.text}`;
+    if (seenTranscriptKeys.current.has(key)) return;
+    seenTranscriptKeys.current.add(key);
+    setTranscript((prev) => [...prev, message]);
+  }, []);
+
+  const ensureDbSession = useCallback(async (): Promise<string | null> => {
+    if (dbSessionIdRef.current) return dbSessionIdRef.current;
+    try {
+      const row = await createSession({ status: "started" });
+      dbSessionIdRef.current = row.id;
+      setDbSessionId(row.id);
+      return row.id;
+    } catch (err) {
+      console.error("Failed to create session record:", err);
+      return null;
+    }
+  }, []);
+
+  const resetConsultation = useCallback(() => {
+    seenTranscriptKeys.current.clear();
+    textSenderRef.current = null;
+    micToggleRef.current = null;
+    setVoiceState("ready");
+    setTranscript([]);
+    setGuidance(null);
+    setSessionStarted(false);
+    setLiveSessionActive(false);
+    setMicEnabled(true);
+    setConnectionError(null);
+    setCompletedStepIds([]);
+    setActiveStepId(null);
+    setGuidanceReady(false);
+    dbSessionIdRef.current = null;
+    setDbSessionId(null);
+  }, []);
+
+  const startSession = useCallback(() => {
+    seenTranscriptKeys.current.clear();
+    setGuidance(null);
+    setTranscript([]);
+    setConnectionError(null);
+    setCompletedStepIds([]);
+    setActiveStepId(null);
+    setGuidanceReady(false);
+    setMicEnabled(true);
+    setVoiceState("ready");
+    setSessionStarted(true);
+    setLiveSessionKey((k) => k + 1);
+    setLiveSessionActive(true);
+    void ensureDbSession();
+  }, [ensureDbSession]);
+
+  const endLiveSession = useCallback(() => {
+    setLiveSessionActive(false);
+    setSessionStarted(false);
+    setVoiceState("ready");
+  }, []);
+
+  const failConsultation = useCallback(
+    (error: ConsultationError) => {
+      setConnectionError(error);
+      setVoiceState("error");
+      setLiveSessionActive(false);
+      setSessionStarted(false);
+      setMicEnabled(false);
+    },
+    [],
+  );
+
+  const stopAgent = useCallback(() => {
+    setLiveSessionActive(false);
+    setSessionStarted(false);
+    setVoiceState("ready");
+    setConnectionError(null);
+    setMicEnabled(true);
+  }, []);
+
+  const markProcessingStep = useCallback(
+    (stepId: string, status: "active" | "completed") => {
+      if (status === "active") {
+        setActiveStepId(stepId);
+        return;
+      }
+      setCompletedStepIds((prev) =>
+        prev.includes(stepId) ? prev : [...prev, stepId],
+      );
+      const order = LIVE_PROCESSING_STEPS.map((s) => s.id);
+      const next = order[order.indexOf(stepId) + 1];
+      setActiveStepId(next ?? null);
+    },
+    [],
+  );
+
+  const setGuidanceResult = useCallback((result: GuidanceResult) => {
+    setGuidance(result);
+    setGuidanceReady(true);
+    setCompletedStepIds(LIVE_PROCESSING_STEPS.map((s) => s.id));
+    setActiveStepId(null);
+  }, []);
+
+  const goToProcessing = useCallback(() => {
+    setMicEnabled(false);
+    navigate("/consultation/processing");
+  }, [navigate]);
+
+  const goToResults = useCallback(() => {
+    navigate("/consultation/results");
+  }, [navigate]);
+
+  const endConsultation = useCallback(() => {
+    // Manual end — if guidance already ready, go to results; else processing.
+    if (guidanceReady) {
+      navigate("/consultation/results");
+      return;
+    }
+    markProcessingStep("symptoms", "active");
+    navigate("/consultation/processing");
+  }, [guidanceReady, markProcessingStep, navigate]);
+
+  const registerTextSender = useCallback(
+    (sender: ((text: string) => Promise<void>) | null) => {
+      textSenderRef.current = sender;
+    },
+    [],
+  );
+
+  const registerMicToggle = useCallback(
+    (toggle: ((enabled: boolean) => Promise<void>) | null) => {
+      micToggleRef.current = toggle;
+    },
+    [],
+  );
+
+  const toggleListening = useCallback(() => {
+    const next = !micEnabled;
+    setMicEnabled(next);
+    void micToggleRef.current?.(next);
+  }, [micEnabled]);
+
+  const sendTextMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || !textSenderRef.current) return;
+    appendMessage({
+      id: createId("user"),
+      role: "user",
+      text: trimmed,
+    });
+    await textSenderRef.current(trimmed);
+  }, [appendMessage]);
+
+  const onLiveKitRoomReady = useCallback(
+    async (roomName: string) => {
+      const id = (await ensureDbSession()) ?? dbSessionIdRef.current;
+      if (!id) return;
+      try {
+        await updateSession(id, {
+          livekit_room_name: roomName,
+          status: "in_progress",
+        });
+      } catch (err) {
+        console.error("Failed to update session room:", err);
+      }
+    },
+    [ensureDbSession],
+  );
+
+  const onProcessingPersist = useCallback(async () => {
+    const id = dbSessionIdRef.current;
+    if (!id) return;
+    try {
+      await updateSession(id, {
+        status: "processing",
+        title: titleFromTranscript(transcript),
+        transcript: transcriptToStored(transcript),
+      });
+    } catch (err) {
+      console.error("Failed to persist processing session:", err);
+    }
+  }, [transcript]);
+
+  const onCompletePersist = useCallback(
+    async (result: GuidanceResult) => {
+      const id = dbSessionIdRef.current;
+      if (!id) return;
+      try {
+        await completeSession(id, {
+          title: titleFromTranscript(transcript),
+          transcript: transcriptToStored(transcript),
+          results: mapGuidanceToStoredResults(result),
+        });
+        toast.success("Saved to your history");
+      } catch (err) {
+        console.error("Failed to save consultation results:", err);
+        toast.error("Couldn't save this consultation. You can still read your results here.");
+      }
+    },
+    [transcript],
+  );
+
+  const value = useMemo<ConsultationContextValue>(
+    () => ({
+      voiceState,
+      transcript,
+      guidance,
+      isListening,
+      isProcessingTurn,
+      sessionStarted,
+      liveSessionActive,
+      liveSessionKey,
+      micEnabled,
+      connectionError,
+      processingSteps: LIVE_PROCESSING_STEPS,
+      completedStepIds,
+      activeStepId,
+      guidanceReady,
+      dbSessionId,
+      startSession,
+      setVoiceState,
+      setMicEnabled,
+      toggleListening,
+      appendMessage,
+      markProcessingStep,
+      setGuidanceResult,
+      goToProcessing,
+      goToResults,
+      endConsultation,
+      endLiveSession,
+      stopAgent,
+      resetConsultation,
+      setConnectionError,
+      failConsultation,
+      sendTextMessage,
+      registerTextSender,
+      registerMicToggle,
+      onLiveKitRoomReady,
+      onProcessingPersist,
+      onCompletePersist,
+    }),
+    [
+      voiceState,
+      transcript,
+      guidance,
+      isListening,
+      isProcessingTurn,
+      sessionStarted,
+      liveSessionActive,
+      liveSessionKey,
+      micEnabled,
+      connectionError,
+      completedStepIds,
+      activeStepId,
+      guidanceReady,
+      dbSessionId,
+      startSession,
+      toggleListening,
+      appendMessage,
+      markProcessingStep,
+      setGuidanceResult,
+      goToProcessing,
+      goToResults,
+      endConsultation,
+      endLiveSession,
+      stopAgent,
+      resetConsultation,
+      failConsultation,
+      sendTextMessage,
+      registerTextSender,
+      registerMicToggle,
+      onLiveKitRoomReady,
+      onProcessingPersist,
+      onCompletePersist,
+    ],
+  );
+
+  return (
+    <ConsultationContext.Provider value={value}>
+      {children}
+    </ConsultationContext.Provider>
+  );
+}
+
+export function useConsultation() {
+  const ctx = useContext(ConsultationContext);
+  if (!ctx) {
+    throw new Error("useConsultation must be used within ConsultationProvider");
+  }
+  return ctx;
+}

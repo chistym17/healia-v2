@@ -24,6 +24,7 @@ export default {
 			maxWidth: {
 				content: '720px',
 				page: '1200px',
+				consultation: '880px',
 			},
 			colors: {
 				healia: {
@@ -107,11 +108,29 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'healia-ring': {
+					'0%': { transform: 'scale(1)', opacity: '0.55' },
+					'70%': { transform: 'scale(1.18)', opacity: '0' },
+					'100%': { transform: 'scale(1.18)', opacity: '0' }
+				},
+				'healia-ring-slow': {
+					'0%': { transform: 'scale(1)', opacity: '0.4' },
+					'70%': { transform: 'scale(1.12)', opacity: '0' },
+					'100%': { transform: 'scale(1.12)', opacity: '0' }
+				},
+				'healia-spark': {
+					'0%, 100%': { opacity: '0.2', transform: 'scale(0.8)' },
+					'50%': { opacity: '0.9', transform: 'scale(1.35)' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'healia-ring': 'healia-ring 1.6s ease-out infinite',
+				'healia-ring-delay': 'healia-ring 1.6s ease-out 0.35s infinite',
+				'healia-ring-slow': 'healia-ring-slow 2.4s ease-out infinite',
+				'healia-spark': 'healia-spark 1.1s ease-in-out infinite'
 			}
 		}
 	},
