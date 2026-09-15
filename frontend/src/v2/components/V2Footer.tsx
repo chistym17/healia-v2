@@ -1,97 +1,78 @@
 import { Link } from "react-router-dom";
-import { V2Button } from "./V2Button";
 
-function FooterLogo() {
-  return (
-    <Link
-      to="/"
-      className="inline-flex items-center gap-2.5 text-healia-text transition-opacity hover:opacity-80"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-healia-brand text-sm font-semibold text-white">
-        H
-      </span>
-      <span className="text-lg font-semibold tracking-tight">Healia</span>
-    </Link>
-  );
-}
-
-const exploreLinks = [
-  { label: "Home", to: "/" },
-  { label: "Start Consultation", to: "/consultation" },
-];
-
-const companyLinks = [
+const links = [
   { label: "About", to: "/about" },
   { label: "Privacy", to: "/privacy" },
+  { label: "History", to: "/consultations" },
 ];
 
-export function V2Footer() {
+type V2FooterProps = {
+  /** Slim bar for app pages; full for marketing homepage */
+  variant?: "full" | "compact";
+};
+
+export function V2Footer({ variant = "full" }: V2FooterProps) {
+  if (variant === "compact") {
+    return (
+      <footer className="border-t border-healia-border-subtle bg-healia-bg">
+        <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-2 px-5 py-3 md:px-8 lg:px-12">
+          <p className="text-[11px] text-healia-text-muted">
+            © {new Date().getFullYear()} Healia · Guidance only, not a diagnosis
+          </p>
+          <nav className="flex items-center gap-4">
+            {links.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="text-[11px] text-healia-text-muted transition-colors hover:text-healia-brand"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer className="border-t border-healia-border bg-healia-bg-secondary">
       <div className="mx-auto max-w-page px-5 md:px-8 lg:px-12">
-        {/* Main footer */}
-        <div className="grid gap-10 py-14 md:grid-cols-[1.4fr_1fr_1fr] md:gap-12 lg:py-16">
-          <div>
-            <FooterLogo />
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-healia-text-secondary">
-              A calm health consultation assistant. Describe your symptoms,
-              get evidence-based guidance, and know when to seek care.
-            </p>
-            <div className="mt-6">
-              <V2Button to="/consultation" className="px-5 py-2.5 text-sm">
-                Start Consultation
-              </V2Button>
-            </div>
-            <p className="mt-6 text-xs text-healia-text-muted">
-              Evidence-based · Voice-first · Private consultation
+        <div className="flex flex-col gap-6 py-8 md:flex-row md:items-start md:justify-between md:py-10">
+          <div className="max-w-sm">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-healia-text transition-opacity hover:opacity-80"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-healia-brand text-xs font-semibold text-white">
+                H
+              </span>
+              <span className="font-semibold tracking-tight">Healia</span>
+            </Link>
+            <p className="mt-3 text-sm leading-relaxed text-healia-text-secondary">
+              Calm voice consultations with clear, evidence-based next steps.
             </p>
           </div>
-
-          <nav aria-label="Explore">
-            <p className="text-xs font-semibold uppercase tracking-wider text-healia-text-muted">
-              Explore
-            </p>
-            <ul className="mt-4 space-y-2.5">
-              {exploreLinks.map((link) => (
-                <li key={link.to}>
-                  <Link
-                    to={link.to}
-                    className="text-sm text-healia-text-secondary transition-colors hover:text-healia-brand"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <nav aria-label="Company">
-            <p className="text-xs font-semibold uppercase tracking-wider text-healia-text-muted">
-              Company
-            </p>
-            <ul className="mt-4 space-y-2.5">
-              {companyLinks.map((link) => (
-                <li key={link.to}>
-                  <Link
-                    to={link.to}
-                    className="text-sm text-healia-text-secondary transition-colors hover:text-healia-brand"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+            {[
+              { label: "Start", to: "/consultation" },
+              { label: "History", to: "/consultations" },
+              { label: "About", to: "/about" },
+              { label: "Privacy", to: "/privacy" },
+            ].map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="text-sm text-healia-text-secondary transition-colors hover:text-healia-brand"
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
         </div>
-
-        {/* Bottom bar */}
-        <div className="flex flex-col gap-3 border-t border-healia-border py-6 md:flex-row md:items-center md:justify-between">
+        <div className="border-t border-healia-border py-4">
           <p className="text-xs text-healia-text-muted">
-            &copy; {new Date().getFullYear()} Healia. All rights reserved.
-          </p>
-          <p className="max-w-lg text-xs leading-relaxed text-healia-text-muted md:text-right">
-            General health guidance only — not medical advice, diagnosis, or
-            emergency care.
+            © {new Date().getFullYear()} Healia · Not medical advice or emergency care
           </p>
         </div>
       </div>

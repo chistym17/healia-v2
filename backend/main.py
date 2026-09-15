@@ -11,6 +11,8 @@ import logging
 from api.router import router as api_router
 from api.livekit import router as livekit_router
 from api.pipeline_logs import router as pipeline_logs_router
+from api.auth import router as auth_router
+from api.sessions import router as sessions_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +40,8 @@ app.include_router(api_router, tags=["API"])
 app.include_router(demo_router, tags=["Demo"])
 app.include_router(livekit_router)
 app.include_router(pipeline_logs_router)
+app.include_router(auth_router)
+app.include_router(sessions_router)
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="."), name="static")
@@ -51,6 +55,8 @@ async def root():
         "endpoints": {
             "demo": "/api/demo",
             "livekit_token": "/api/livekit/token",
+            "auth": "/api/auth",
+            "sessions": "/api/sessions",
             "docs": "/docs"
         }
     }

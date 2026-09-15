@@ -16,3 +16,7 @@ gTTS
 livekit-agents[google]~=1.6
 livekit-api
 livekit-plugins-assemblyai~=1.6
+psycopg[binary]
+supabase
+email-validator
+PyJWT

@@ -26,6 +26,7 @@ import {
   type PipelineEvent,
 } from "@/v2/lib/pipeline";
 import { mapAgentStateToVoiceState } from "@/v2/lib/voiceState";
+import type { GuidanceResult } from "@/v2/types/consultation";
 
 /** Max wait after guidance before leaving even if speech.completed never arrives. */
 const SPEECH_FALLBACK_MS = 20_000;
@@ -51,6 +52,9 @@ function LiveKitBridge({ room }: { room: Room }) {
     registerMicToggle,
     setMicEnabled,
     micEnabled,
+    onLiveKitRoomReady,
+    onProcessingPersist,
+    onCompletePersist,
     endLiveSession,
   } = useConsultation();
 
@@ -58,6 +62,7 @@ function LiveKitBridge({ room }: { room: Room }) {
   const { send: sendChat } = useChat();
   const navigatedToProcessing = useRef(false);
   const guidanceStored = useRef(false);
+  const guidanceRef = useRef<GuidanceResult | null>(null);
   const finishedFlow = useRef(false);
   const speechFallbackTimer = useRef<number | null>(null);
 
@@ -68,11 +73,15 @@ function LiveKitBridge({ room }: { room: Room }) {
       window.clearTimeout(speechFallbackTimer.current);
       speechFallbackTimer.current = null;
     }
-    goToResults();
-    // Brief delay so Results can mount before room teardown.
-    window.setTimeout(() => {
-      endLiveSession();
-    }, 500);
+    const save = guidanceRef.current
+      ? onCompletePersist(guidanceRef.current)
+      : Promise.resolve();
+    void save.finally(() => {
+      goToResults();
+      window.setTimeout(() => {
+        endLiveSession();
+      }, 500);
+    });
   };
 
   useEffect(() => {
@@ -165,6 +174,7 @@ function LiveKitBridge({ room }: { room: Room }) {
       setMicEnabled(false);
       markProcessingStep("symptoms", "completed");
       markProcessingStep("references", "active");
+      void onProcessingPersist();
       goToProcessing();
     }
 
@@ -174,6 +184,7 @@ function LiveKitBridge({ room }: { room: Room }) {
       const mapped = mapBackendGuidanceToResult(results ?? null);
       if (mapped) {
         guidanceStored.current = true;
+        guidanceRef.current = mapped;
         setGuidanceResult(mapped);
         markProcessingStep("results", "active");
 
@@ -218,7 +229,7 @@ function LiveKitBridge({ room }: { room: Room }) {
 }
 
 function LiveKitSessionInner({ children }: { children: ReactNode }) {
-  const { setConnectionError } = useConsultation();
+  const { setConnectionError, onLiveKitRoomReady } = useConsultation();
 
   const tokenSource = useMemo(
     () => TokenSource.endpoint(LIVEKIT_TOKEN_URL),
@@ -253,6 +264,9 @@ function LiveKitSessionInner({ children }: { children: ReactNode }) {
         tracks: {
           microphone: { enabled: true },
         },
+      })
+      .then(() => {
+        if (!cancelled) void onLiveKitRoomReady(roomName);
       })
       .catch((error: unknown) => {
         if (cancelled) return;

@@ -38,6 +38,9 @@ export default function ResultsPage() {
             <V2Button to="/" variant="secondary" className="px-4 py-2 text-sm">
               Back to Home
             </V2Button>
+            <V2Button to="/consultations" variant="secondary" className="px-4 py-2 text-sm">
+              View history
+            </V2Button>
             <V2Button onClick={handleStartNew} className="px-4 py-2 text-sm">
               New consultation
             </V2Button>

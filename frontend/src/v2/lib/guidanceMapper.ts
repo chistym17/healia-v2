@@ -76,3 +76,48 @@ export function mapBackendGuidanceToResult(
     references,
   };
 }
+
+export function mapStoredResultsToGuidance(
+  results: {
+    summary?: string;
+    possible_concerns?: string;
+    actions?: string[] | unknown;
+    warning_signs?: string;
+    seek_care?: string;
+    references?: Array<{ source?: string; title?: string }> | unknown;
+  } | null,
+): GuidanceResult | null {
+  if (!results) return null;
+  const actions = Array.isArray(results.actions)
+    ? results.actions.map((a) => String(a)).filter(Boolean)
+    : [];
+  const references: GuidanceReference[] = Array.isArray(results.references)
+    ? results.references.map((r) => ({
+        source: String(r.source || "Medical reference"),
+        title: String(r.title || "Reference"),
+      }))
+    : [];
+
+  return {
+    summary: results.summary || "",
+    possibleConcerns: results.possible_concerns || "",
+    actions,
+    warningSigns: results.warning_signs || "",
+    seekCare: results.seek_care || "",
+    references,
+  };
+}
+
+export function mapGuidanceToStoredResults(guidance: GuidanceResult) {
+  return {
+    summary: guidance.summary,
+    possible_concerns: guidance.possibleConcerns,
+    actions: guidance.actions,
+    warning_signs: guidance.warningSigns,
+    seek_care: guidance.seekCare,
+    references: guidance.references.map((r) => ({
+      source: r.source,
+      title: r.title,
+    })),
+  };
+}

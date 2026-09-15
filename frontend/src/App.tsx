@@ -13,11 +13,17 @@ import { AudioProvider } from "@/context/AudioContext";
 import NotFound from "./pages/NotFound";
 import HomePage from "@/v2/pages/HomePage";
 import ConsultationRoutes from "@/v2/pages/consultation/ConsultationRoutes";
-import { PlaceholderPage } from "@/v2/pages/PlaceholderPage";
+import AboutPage from "@/v2/pages/AboutPage";
+import PrivacyPage from "@/v2/pages/PrivacyPage";
+import LoginPage from "@/v2/pages/auth/LoginPage";
+import SignupPage from "@/v2/pages/auth/SignupPage";
+import ConsultationHistoryPage from "@/v2/pages/consultations/ConsultationHistoryPage";
+import ConsultationDetailPage from "@/v2/pages/consultations/ConsultationDetailPage";
+import { AuthProvider } from "@/v2/context/AuthContext";
+import { ProtectedRoute } from "@/v2/components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
-/** `/v2/...` → `/...` so old bookmarks still work. */
 function StripV2Prefix() {
   const { pathname, search, hash } = useLocation();
   const stripped = pathname.replace(/^\/v2/, "") || "/";
@@ -31,50 +37,58 @@ const App = () => (
       <Sonner />
       <AudioProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Primary (v2) routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/consultation/*" element={<ConsultationRoutes />} />
-            <Route
-              path="/about"
-              element={
-                <PlaceholderPage
-                  title="About Healia"
-                  description="Learn about what Healia is, its limitations, and how it helps you understand your health."
-                />
-              }
-            />
-            <Route
-              path="/privacy"
-              element={
-                <PlaceholderPage
-                  title="Privacy"
-                  description="Information about how Healia handles your data and protects your privacy."
-                />
-              }
-            />
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route
+                path="/consultations"
+                element={
+                  <ProtectedRoute>
+                    <ConsultationHistoryPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/consultations/:id"
+                element={
+                  <ProtectedRoute>
+                    <ConsultationDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/consultation/*"
+                element={
+                  <ProtectedRoute>
+                    <ConsultationRoutes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
 
-            {/* Legacy /v2 URLs → canonical paths */}
-            <Route path="/v2" element={<Navigate to="/" replace />} />
-            <Route path="/v2/*" element={<StripV2Prefix />} />
+              <Route path="/v2" element={<Navigate to="/" replace />} />
+              <Route path="/v2/*" element={<StripV2Prefix />} />
 
-            {/* Legacy v1 pages → v2 equivalents */}
-            <Route
-              path="/conversation"
-              element={<Navigate to="/consultation" replace />}
-            />
-            <Route
-              path="/conversation/chat"
-              element={<Navigate to="/consultation" replace />}
-            />
-            <Route
-              path="/live-voice"
-              element={<Navigate to="/consultation" replace />}
-            />
-            <Route path="/features" element={<Navigate to="/" replace />} />
+              <Route
+                path="/conversation"
+                element={<Navigate to="/consultation" replace />}
+              />
+              <Route
+                path="/conversation/chat"
+                element={<Navigate to="/consultation" replace />}
+              />
+              <Route
+                path="/live-voice"
+                element={<Navigate to="/consultation" replace />}
+              />
+              <Route path="/features" element={<Navigate to="/" replace />} />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </AudioProvider>
     </TooltipProvider>

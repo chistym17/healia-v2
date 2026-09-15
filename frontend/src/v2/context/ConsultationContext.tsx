@@ -9,6 +9,14 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { LIVE_PROCESSING_STEPS } from "@/v2/lib/pipeline";
+import {
+  completeSession,
+  createSession,
+  titleFromTranscript,
+  transcriptToStored,
+  updateSession,
+} from "@/v2/lib/sessionsApi";
+import { mapGuidanceToStoredResults } from "@/v2/lib/guidanceMapper";
 import type {
   GuidanceResult,
   ProcessingStep,
@@ -31,6 +39,7 @@ type ConsultationContextValue = {
   completedStepIds: string[];
   activeStepId: string | null;
   guidanceReady: boolean;
+  dbSessionId: string | null;
   startSession: () => void;
   setVoiceState: (state: VoiceState) => void;
   setMicEnabled: (enabled: boolean) => void;
@@ -48,6 +57,9 @@ type ConsultationContextValue = {
   sendTextMessage: (text: string) => Promise<void>;
   registerTextSender: (sender: ((text: string) => Promise<void>) | null) => void;
   registerMicToggle: (toggle: ((enabled: boolean) => Promise<void>) | null) => void;
+  onLiveKitRoomReady: (roomName: string) => Promise<void>;
+  onProcessingPersist: () => Promise<void>;
+  onCompletePersist: (guidance: GuidanceResult) => Promise<void>;
 };
 
 const ConsultationContext = createContext<ConsultationContextValue | null>(
@@ -71,6 +83,8 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [guidanceReady, setGuidanceReady] = useState(false);
   const [liveSessionKey, setLiveSessionKey] = useState(0);
+  const [dbSessionId, setDbSessionId] = useState<string | null>(null);
+  const dbSessionIdRef = useRef<string | null>(null);
   const textSenderRef = useRef<((text: string) => Promise<void>) | null>(null);
   const micToggleRef = useRef<((enabled: boolean) => Promise<void>) | null>(
     null,
@@ -88,6 +102,19 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     setTranscript((prev) => [...prev, message]);
   }, []);
 
+  const ensureDbSession = useCallback(async (): Promise<string | null> => {
+    if (dbSessionIdRef.current) return dbSessionIdRef.current;
+    try {
+      const row = await createSession({ status: "started" });
+      dbSessionIdRef.current = row.id;
+      setDbSessionId(row.id);
+      return row.id;
+    } catch (err) {
+      console.error("Failed to create session record:", err);
+      return null;
+    }
+  }, []);
+
   const resetConsultation = useCallback(() => {
     seenTranscriptKeys.current.clear();
     textSenderRef.current = null;
@@ -102,6 +129,8 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     setCompletedStepIds([]);
     setActiveStepId(null);
     setGuidanceReady(false);
+    dbSessionIdRef.current = null;
+    setDbSessionId(null);
   }, []);
 
   const startSession = useCallback(() => {
@@ -117,7 +146,8 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     setSessionStarted(true);
     setLiveSessionKey((k) => k + 1);
     setLiveSessionActive(true);
-  }, []);
+    void ensureDbSession();
+  }, [ensureDbSession]);
 
   const endLiveSession = useCallback(() => {
     setLiveSessionActive(false);
@@ -206,6 +236,53 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     await textSenderRef.current(trimmed);
   }, [appendMessage]);
 
+  const onLiveKitRoomReady = useCallback(
+    async (roomName: string) => {
+      const id = (await ensureDbSession()) ?? dbSessionIdRef.current;
+      if (!id) return;
+      try {
+        await updateSession(id, {
+          livekit_room_name: roomName,
+          status: "in_progress",
+        });
+      } catch (err) {
+        console.error("Failed to update session room:", err);
+      }
+    },
+    [ensureDbSession],
+  );
+
+  const onProcessingPersist = useCallback(async () => {
+    const id = dbSessionIdRef.current;
+    if (!id) return;
+    try {
+      await updateSession(id, {
+        status: "processing",
+        title: titleFromTranscript(transcript),
+        transcript: transcriptToStored(transcript),
+      });
+    } catch (err) {
+      console.error("Failed to persist processing session:", err);
+    }
+  }, [transcript]);
+
+  const onCompletePersist = useCallback(
+    async (result: GuidanceResult) => {
+      const id = dbSessionIdRef.current;
+      if (!id) return;
+      try {
+        await completeSession(id, {
+          title: titleFromTranscript(transcript),
+          transcript: transcriptToStored(transcript),
+          results: mapGuidanceToStoredResults(result),
+        });
+      } catch (err) {
+        console.error("Failed to save consultation results:", err);
+      }
+    },
+    [transcript],
+  );
+
   const value = useMemo<ConsultationContextValue>(
     () => ({
       voiceState,
@@ -222,6 +299,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       completedStepIds,
       activeStepId,
       guidanceReady,
+      dbSessionId,
       startSession,
       setVoiceState,
       setMicEnabled,
@@ -239,6 +317,9 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       registerTextSender,
       registerMicToggle,
+      onLiveKitRoomReady,
+      onProcessingPersist,
+      onCompletePersist,
     }),
     [
       voiceState,
@@ -254,6 +335,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       completedStepIds,
       activeStepId,
       guidanceReady,
+      dbSessionId,
       startSession,
       toggleListening,
       appendMessage,
@@ -268,6 +350,9 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       registerTextSender,
       registerMicToggle,
+      onLiveKitRoomReady,
+      onProcessingPersist,
+      onCompletePersist,
     ],
   );
 

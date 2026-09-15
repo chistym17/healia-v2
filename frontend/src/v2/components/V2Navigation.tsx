@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import { V2Button } from "./V2Button";
+import { useAuth } from "@/v2/context/AuthContext";
 
 export function V2Navigation() {
+  const { user, isAuthenticated, logout } = useAuth();
+
   return (
     <header className="sticky top-0 z-50 border-b border-healia-border-subtle bg-healia-bg/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-page items-center justify-between px-5 md:px-8 lg:px-12">
+      <div className="mx-auto flex h-16 max-w-page items-center justify-between gap-3 px-5 md:px-8 lg:px-12">
         <Link
           to="/"
           className="flex items-center gap-2.5 text-healia-text transition-opacity hover:opacity-80"
@@ -36,9 +39,33 @@ export function V2Navigation() {
           </Link>
         </nav>
 
-        <V2Button to="/consultation" className="px-5 py-2.5 text-sm">
-          Start Consultation
-        </V2Button>
+        <div className="flex items-center gap-2">
+          {isAuthenticated ? (
+            <>
+              <span className="hidden max-w-[10rem] truncate text-sm text-healia-text-secondary sm:inline">
+                {user?.display_name || user?.email}
+              </span>
+              <V2Button variant="text" onClick={logout} className="px-3 py-2 text-sm">
+                Sign out
+              </V2Button>
+              <V2Button to="/consultations" variant="secondary" className="px-4 py-2.5 text-sm">
+                History
+              </V2Button>
+              <V2Button to="/consultation" className="px-5 py-2.5 text-sm">
+                Consultation
+              </V2Button>
+            </>
+          ) : (
+            <>
+              <V2Button to="/login" variant="secondary" className="px-4 py-2.5 text-sm">
+                Sign in
+              </V2Button>
+              <V2Button to="/signup" className="px-5 py-2.5 text-sm">
+                Sign up
+              </V2Button>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
