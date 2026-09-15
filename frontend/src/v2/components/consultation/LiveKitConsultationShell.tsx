@@ -20,11 +20,15 @@ import { mapBackendGuidanceToResult } from "@/v2/lib/guidanceMapper";
 import {
   isGuidanceReadyEvent,
   isProcessingStartEvent,
+  isSpeechCompleteEvent,
   parsePipelinePayload,
   stepIdForPipelinePhase,
   type PipelineEvent,
 } from "@/v2/lib/pipeline";
 import { mapAgentStateToVoiceState } from "@/v2/lib/voiceState";
+
+/** Max wait after guidance before leaving even if speech.completed never arrives. */
+const SPEECH_FALLBACK_MS = 20_000;
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -45,15 +49,31 @@ function LiveKitBridge({ room }: { room: Room }) {
     setConnectionError,
     registerTextSender,
     registerMicToggle,
+    setMicEnabled,
     micEnabled,
-    guidanceReady,
     endLiveSession,
   } = useConsultation();
 
   const { state } = useVoiceAssistant();
   const { send: sendChat } = useChat();
   const navigatedToProcessing = useRef(false);
-  const navigatedToResults = useRef(false);
+  const guidanceStored = useRef(false);
+  const finishedFlow = useRef(false);
+  const speechFallbackTimer = useRef<number | null>(null);
+
+  const finishAndShowResults = () => {
+    if (finishedFlow.current) return;
+    finishedFlow.current = true;
+    if (speechFallbackTimer.current != null) {
+      window.clearTimeout(speechFallbackTimer.current);
+      speechFallbackTimer.current = null;
+    }
+    goToResults();
+    // Brief delay so Results can mount before room teardown.
+    window.setTimeout(() => {
+      endLiveSession();
+    }, 500);
+  };
 
   useEffect(() => {
     setVoiceState(mapAgentStateToVoiceState(state));
@@ -90,6 +110,14 @@ function LiveKitBridge({ room }: { room: Room }) {
     });
     return () => registerTextSender(null);
   }, [registerTextSender, sendChat]);
+
+  useEffect(() => {
+    return () => {
+      if (speechFallbackTimer.current != null) {
+        window.clearTimeout(speechFallbackTimer.current);
+      }
+    };
+  }, []);
 
   const handlePipelineEvent = (event: PipelineEvent) => {
     const patientText = event.data?.patient_text;
@@ -131,19 +159,23 @@ function LiveKitBridge({ room }: { room: Room }) {
       }
     }
 
+    // Enter processing + mute mic so patient can't barge in
     if (isProcessingStartEvent(event) && !navigatedToProcessing.current) {
       navigatedToProcessing.current = true;
+      setMicEnabled(false);
       markProcessingStep("symptoms", "completed");
       markProcessingStep("references", "active");
       goToProcessing();
     }
 
-    if (isGuidanceReadyEvent(event) && !navigatedToResults.current) {
+    // Store guidance but keep LiveKit open for spoken reply
+    if (isGuidanceReadyEvent(event) && !guidanceStored.current) {
       const results = event.data?.results as Record<string, unknown> | undefined;
       const mapped = mapBackendGuidanceToResult(results ?? null);
       if (mapped) {
+        guidanceStored.current = true;
         setGuidanceResult(mapped);
-        navigatedToResults.current = true;
+        markProcessingStep("results", "active");
 
         const answer =
           typeof results?.spoken_answer === "string"
@@ -157,14 +189,17 @@ function LiveKitBridge({ room }: { room: Room }) {
           });
         }
 
-        window.setTimeout(() => {
-          goToResults();
-          // Disconnect after Results mount so room teardown does not race navigation.
-          window.setTimeout(() => {
-            endLiveSession();
-          }, 400);
-        }, 600);
+        // Fallback if speech.completed never arrives
+        speechFallbackTimer.current = window.setTimeout(() => {
+          finishAndShowResults();
+        }, SPEECH_FALLBACK_MS);
       }
+    }
+
+    // After Healia finishes speaking → Results, then disconnect
+    if (isSpeechCompleteEvent(event) && guidanceStored.current) {
+      markProcessingStep("results", "completed");
+      finishAndShowResults();
     }
   };
 
@@ -173,14 +208,6 @@ function LiveKitBridge({ room }: { room: Room }) {
     if (!event) return;
     handlePipelineEvent(event);
   });
-
-  useEffect(() => {
-    if (guidanceReady && !navigatedToResults.current) {
-      navigatedToResults.current = true;
-      goToResults();
-      window.setTimeout(() => endLiveSession(), 400);
-    }
-  }, [endLiveSession, goToResults, guidanceReady]);
 
   return (
     <>
@@ -251,7 +278,7 @@ function LiveKitSessionInner({ children }: { children: ReactNode }) {
 }
 
 /**
- * Keeps LiveKit mounted across Session → Processing so pipeline events are not lost.
+ * Keeps LiveKit mounted across Session → Processing so pipeline events / speech are not lost.
  */
 export function LiveKitConsultationShell({
   children,

@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  Clock,
+  HeartPulse,
+  Info,
+  MicOff,
+  Shield,
+} from "lucide-react";
 import { ConsultationLayout } from "@/v2/components/consultation/ConsultationLayout";
 import { ProcessingSteps } from "@/v2/components/consultation/ProcessingSteps";
 import { useConsultation } from "@/v2/context/ConsultationContext";
@@ -10,15 +17,15 @@ const ACTIVE_COPY: Record<
 > = {
   symptoms: {
     title: "Understanding your conversation",
-    body: "Healia is reviewing the symptoms and answers you shared so nothing important is missed.",
+    body: "Reviewing the symptoms and answers you shared so nothing important is missed.",
   },
   references: {
     title: "Looking up medical references",
-    body: "Healia is searching trusted medical sources related to what you described — not guessing from memory alone.",
+    body: "Searching trusted sources related to what you described — not guessing from memory alone.",
   },
   results: {
     title: "Preparing your guidance",
-    body: "Healia is putting together a clear summary, practical next steps, warning signs, and when to seek care.",
+    body: "Building your summary, practical next steps, warning signs, and when to seek care. You may hear a short spoken summary when ready.",
   },
 };
 
@@ -30,13 +37,11 @@ function formatElapsed(seconds: number) {
 }
 
 export default function ProcessingPage() {
-  const navigate = useNavigate();
   const {
     processingSteps,
     completedStepIds,
     activeStepId,
     guidanceReady,
-    guidance,
     connectionError,
   } = useConsultation();
 
@@ -50,11 +55,8 @@ export default function ProcessingPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (guidanceReady && guidance) {
-      navigate("/v2/consultation/results");
-    }
-  }, [guidance, guidanceReady, navigate]);
+  // Results navigation is handled by LiveKit bridge after speech.completed
+  // so the spoken reply is not cut off.
 
   const currentStepId =
     activeStepId ||
@@ -64,95 +66,153 @@ export default function ProcessingPage() {
   const currentCopy = ACTIVE_COPY[currentStepId] ?? ACTIVE_COPY.results;
 
   const waitHint = useMemo(() => {
-    if (elapsedSec < 15) {
-      return "This usually takes about 15–45 seconds.";
+    if (guidanceReady) {
+      return "Guidance is ready — Healia may speak a short summary, then your results open.";
     }
-    if (elapsedSec < 45) {
+    if (elapsedSec < 20) {
+      return "Usually takes about 15–60 seconds. Please stay on this page.";
+    }
+    if (elapsedSec < 60) {
       return "Still working — checking references and preparing your guidance.";
     }
-    return "Taking a bit longer than usual. Please stay on this page — Healia is still preparing your results.";
-  }, [elapsedSec]);
+    return "Taking longer than usual. Please wait — Healia is still preparing your results.";
+  }, [elapsedSec, guidanceReady]);
 
   return (
     <ConsultationLayout>
-      <div className="mx-auto max-w-content px-5 py-14 md:py-20 lg:px-0">
-        <p className="text-sm font-medium uppercase tracking-widest text-healia-brand">
-          Almost done
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-healia-text md:text-3xl">
-          Preparing your health guidance
-        </h1>
-        <p className="mt-3 max-w-xl text-base leading-relaxed text-healia-text-secondary">
-          Your consultation is complete. Healia is now turning your conversation
-          into clear, evidence-based guidance you can read and act on.
-        </p>
-
-        {/* Current activity card */}
-        <div className="mt-10 rounded-xl border border-healia-border bg-healia-bg-secondary px-5 py-5 md:px-6">
-          <div className="flex items-start justify-between gap-4">
+      <div className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-page flex-col px-5 py-5 md:px-8 md:py-6 lg:px-12">
+        {/* Compact header */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest text-healia-brand">
+              Almost done
+            </p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-healia-text md:text-2xl">
+              Preparing your health guidance
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-healia-border bg-healia-bg-secondary px-3 py-2">
+            <Clock className="h-4 w-4 text-healia-brand" strokeWidth={1.75} />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-healia-text-muted">
-                What Healia is doing now
+              <p className="text-[10px] uppercase tracking-wide text-healia-text-muted">
+                Waiting
               </p>
-              <h2 className="mt-2 text-lg font-medium text-healia-text">
-                {connectionError ? "Something went wrong" : currentCopy.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-healia-text-secondary">
-                {connectionError || currentCopy.body}
+              <p className="text-sm font-semibold tabular-nums text-healia-text">
+                {formatElapsed(elapsedSec)}
               </p>
             </div>
-            {!connectionError && (
-              <div className="shrink-0 text-right">
-                <p className="text-xs text-healia-text-muted">Time waiting</p>
-                <p className="mt-1 font-medium tabular-nums text-healia-brand">
-                  {formatElapsed(elapsedSec)}
-                </p>
-              </div>
-            )}
           </div>
-
-          {!connectionError && (
-            <p className="mt-4 border-t border-healia-border-subtle pt-4 text-sm text-healia-text-secondary">
-              {waitHint}
-            </p>
-          )}
         </div>
 
-        {/* Steps */}
-        {!connectionError && (
-          <div className="mt-8">
-            <p className="mb-4 text-sm font-medium text-healia-text">
-              Progress
-            </p>
-            <ProcessingSteps
-              steps={processingSteps}
-              completedStepIds={completedStepIds}
-              activeStepId={activeStepId}
-            />
-          </div>
-        )}
+        {/* Left / right cards — fit viewport, minimal scroll */}
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          {/* Left: status + notes */}
+          <div className="flex min-h-0 flex-col gap-4">
+            <section className="flex flex-1 flex-col rounded-xl border border-healia-brand/20 bg-healia-brand-light/40 p-5 md:p-6">
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-healia-brand text-white">
+                  <HeartPulse className="h-4 w-4" strokeWidth={1.75} />
+                </span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-healia-brand">
+                    What Healia is doing now
+                  </p>
+                  <h2 className="text-lg font-semibold text-healia-text">
+                    {connectionError ? "Something went wrong" : currentCopy.title}
+                  </h2>
+                </div>
+              </div>
 
-        {/* User notes */}
-        <aside className="mt-10 rounded-lg border border-healia-border-subtle bg-healia-bg px-5 py-4">
-          <p className="text-sm font-medium text-healia-text">Please note</p>
-          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-healia-text-secondary">
-            <li className="flex gap-2">
-              <span className="text-healia-brand">·</span>
-              You don&apos;t need to refresh or go back — results open
-              automatically when ready.
-            </li>
-            <li className="flex gap-2">
-              <span className="text-healia-brand">·</span>
-              Healia is not diagnosing you. This is educational guidance based
-              on what you shared and medical references.
-            </li>
-            <li className="flex gap-2">
-              <span className="text-healia-brand">·</span>
-              If you feel this is an emergency, stop and seek urgent medical
-              care now.
-            </li>
-          </ul>
-        </aside>
+              <p className="mt-4 text-sm leading-relaxed text-healia-text-secondary">
+                {connectionError || currentCopy.body}
+              </p>
+
+              {!connectionError && (
+                <div className="mt-auto space-y-3 pt-5">
+                  <div className="flex items-start gap-2.5 rounded-lg border border-healia-border/80 bg-healia-bg-secondary/90 px-3 py-2.5">
+                    <MicOff
+                      className="mt-0.5 h-4 w-4 shrink-0 text-healia-text-muted"
+                      strokeWidth={1.75}
+                    />
+                    <p className="text-xs leading-relaxed text-healia-text-secondary">
+                      Your microphone is muted while guidance is prepared, so
+                      talking won&apos;t interrupt Healia.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-healia-info/20 bg-healia-info/[0.06] px-3 py-2.5">
+                    <Info
+                      className="mt-0.5 h-4 w-4 shrink-0 text-healia-info"
+                      strokeWidth={1.75}
+                    />
+                    <p className="text-xs leading-relaxed text-healia-text-secondary">
+                      {waitHint}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <aside className="rounded-xl border border-healia-border-subtle bg-healia-bg-secondary p-4 md:p-5">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-healia-brand" strokeWidth={1.75} />
+                <p className="text-sm font-medium text-healia-text">Please note</p>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs leading-relaxed text-healia-text-secondary">
+                <li className="flex gap-2">
+                  <span className="text-healia-brand">·</span>
+                  Stay on this page — results open automatically when ready.
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-healia-brand">·</span>
+                  This is educational guidance, not a medical diagnosis.
+                </li>
+                <li className="flex gap-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-healia-warning" strokeWidth={1.75} />
+                  <span>
+                    If this feels like an emergency, seek urgent care now.
+                  </span>
+                </li>
+              </ul>
+            </aside>
+          </div>
+
+          {/* Right: progress steps */}
+          <section className="flex min-h-0 flex-col rounded-xl border border-healia-border bg-healia-bg-secondary p-5 md:p-6">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-healia-text-muted">
+                  Progress
+                </p>
+                <h2 className="text-lg font-semibold text-healia-text">
+                  Guidance pipeline
+                </h2>
+              </div>
+              {guidanceReady && (
+                <span className="rounded-md bg-healia-success/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-healia-success">
+                  Ready
+                </span>
+              )}
+            </div>
+
+            {connectionError ? (
+              <p className="text-sm text-healia-danger">{connectionError}</p>
+            ) : (
+              <div className="min-h-0 flex-1">
+                <ProcessingSteps
+                  steps={processingSteps}
+                  completedStepIds={completedStepIds}
+                  activeStepId={activeStepId}
+                  compact
+                />
+              </div>
+            )}
+
+            <p className="mt-4 border-t border-healia-border-subtle pt-3 text-xs text-healia-text-muted">
+              Your consultation conversation is complete. Healia is finishing
+              evidence-based guidance for you to read next.
+            </p>
+          </section>
+        </div>
       </div>
     </ConsultationLayout>
   );

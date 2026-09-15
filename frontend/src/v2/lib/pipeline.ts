@@ -38,6 +38,10 @@ export function isGuidanceReadyEvent(event: PipelineEvent): boolean {
   return event.phase === "guidance" && event.status === "completed";
 }
 
+export function isSpeechCompleteEvent(event: PipelineEvent): boolean {
+  return event.phase === "speech" && event.status === "completed";
+}
+
 export function isProcessingStartEvent(event: PipelineEvent): boolean {
   if (event.phase === "case_package" && event.status === "completed") return true;
   if (event.phase === "knowledge_rag" && event.status === "started") return true;

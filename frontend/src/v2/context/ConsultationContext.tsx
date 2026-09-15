@@ -157,6 +157,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const goToProcessing = useCallback(() => {
+    setMicEnabled(false);
     navigate("/v2/consultation/processing");
   }, [navigate]);
 
