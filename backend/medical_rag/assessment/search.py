@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -11,14 +10,17 @@ from typing import Any
 
 import faiss
 import numpy as np
-import requests
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent
+BACKEND_ROOT = ROOT.parent.parent
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from questions import TYPE_PRIORITY, TYPE_THEMES, to_conversational, type_rank
+from utils.embeddings import embed_query as embed_query_text
 
 STORE_DIR = ROOT / "store"
 CONFIG_PATH = ROOT / "config.json"
@@ -37,18 +39,6 @@ GENERIC_RED_FLAGS = [
 def _load_config() -> dict:
     with CONFIG_PATH.open("r", encoding="utf-8") as f:
         return json.load(f)
-
-
-def _resolve_endpoint(cfg: dict) -> str:
-    load_dotenv(ROOT.parent.parent / ".env")
-    emb = cfg["embedding"]
-    return os.getenv(emb["endpoint_env"]) or emb["default_endpoint"]
-
-
-def _truncate(text: str, max_chars: int) -> str:
-    if max_chars <= 0 or len(text) <= max_chars:
-        return text
-    return text[:max_chars]
 
 
 def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
@@ -112,18 +102,17 @@ def _load_index() -> tuple[faiss.Index, list[dict[str, Any]], dict]:
     return index, metadata, cfg
 
 
-def _embed_query(query: str, cfg: dict, endpoint: str) -> np.ndarray:
+def _embed_query(query: str, cfg: dict) -> np.ndarray:
+    load_dotenv(ROOT.parent.parent / ".env")
     emb = cfg["embedding"]
-    payload = {
-        "inputs": [_truncate(query, int(emb.get("truncate_chars", 900)))]
-    }
-    resp = requests.post(
-        endpoint,
-        json=payload,
-        timeout=int(emb.get("request_timeout_sec", 60)),
+    vector = embed_query_text(
+        query,
+        truncate_chars=int(emb.get("truncate_chars", 900)),
+        timeout=float(emb.get("request_timeout_sec", 60)),
     )
-    resp.raise_for_status()
-    return _l2_normalize(np.asarray(resp.json(), dtype=np.float32))
+    if not vector:
+        raise RuntimeError("Embedding provider returned an empty vector")
+    return _l2_normalize(np.asarray([vector], dtype=np.float32))
 
 
 def _diversify_hits(
@@ -212,8 +201,7 @@ def search_questions(
         }
 
     index, metadata, cfg = _load_index()
-    endpoint = _resolve_endpoint(cfg)
-    qvec = _embed_query(query, cfg, endpoint)
+    qvec = _embed_query(query, cfg)
     scores, indices = index.search(qvec, top_k)
 
     raw_hits: list[dict[str, Any]] = []

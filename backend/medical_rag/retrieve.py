@@ -7,7 +7,6 @@ Does not modify embeddings or the FAISS index.
 from __future__ import annotations
 
 import json
-import os
 import pickle
 import re
 import sys
@@ -17,14 +16,17 @@ from typing import Any
 
 import faiss
 import numpy as np
-import requests
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent
+BACKEND_ROOT = ROOT.parent
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from reranker import is_rerank_enabled, rerank, resolve_rerank_url
+from utils.embeddings import embed_query as embed_query_text
 
 CONFIG_PATH = ROOT / "config.json"
 TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
@@ -37,12 +39,6 @@ def load_json(path: Path) -> dict:
 
 def tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(text.lower())
-
-
-def truncate_for_embed(text: str, max_chars: int) -> str:
-    if max_chars <= 0 or len(text) <= max_chars:
-        return text
-    return text[:max_chars]
 
 
 def l2_normalize(vectors: np.ndarray) -> np.ndarray:
@@ -112,7 +108,6 @@ class MedicalRetriever:
 
         self.store_cfg = load_json(store_cfg_path)
         self.emb_cfg = self.store_cfg["embedding"]
-        self.endpoint = self._resolve_endpoint()
         self.rerank_endpoint = resolve_rerank_url(self.cfg)
 
         self.faiss_index = faiss.read_index(str(index_path))
@@ -127,11 +122,6 @@ class MedicalRetriever:
         self.bm25_doc_ids: list[str] | None = None
         if load_bm25:
             self._load_bm25()
-
-    def _resolve_endpoint(self) -> str:
-        load_dotenv(self.root.parent / ".env")
-        emb = self.cfg["embedding"]
-        return os.getenv(emb["endpoint_env"]) or emb["default_endpoint"]
 
     def _load_bm25(self) -> None:
         index_path = self.bm25_dir / "bm25.pkl"
@@ -160,20 +150,15 @@ class MedicalRetriever:
             return json.loads(f.readline().decode("utf-8"))
 
     def embed_query(self, text: str) -> np.ndarray:
-        payload = {
-            "inputs": [
-                truncate_for_embed(
-                    text, int(self.emb_cfg.get("truncate_chars", 900))
-                )
-            ]
-        }
-        resp = requests.post(
-            self.endpoint,
-            json=payload,
-            timeout=self.emb_cfg.get("request_timeout_sec", 60),
+        load_dotenv(self.root.parent / ".env")
+        vector = embed_query_text(
+            text,
+            truncate_chars=int(self.emb_cfg.get("truncate_chars", 900)),
+            timeout=float(self.emb_cfg.get("request_timeout_sec", 60)),
         )
-        resp.raise_for_status()
-        return l2_normalize(np.asarray(resp.json(), dtype=np.float32))
+        if not vector:
+            raise RuntimeError("Embedding provider returned an empty vector")
+        return l2_normalize(np.asarray([vector], dtype=np.float32))
 
     def search_faiss(self, query: str, top_k: int = 20) -> list[dict[str, Any]]:
         q = self.embed_query(query)

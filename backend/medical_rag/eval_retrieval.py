@@ -186,7 +186,7 @@ def main() -> None:
     if need_bm25:
         retriever.require_bm25()
         print(f"BM25     : {len(retriever.bm25_doc_ids)} docs")
-    print(f"Embed    : {retriever.endpoint}")
+    print(f"Embed    : provider via utils.embeddings")
     if args.mode in ("rerank", "compare"):
         print(f"Rerank   : {retriever.rerank_endpoint}")
     print("Soft grades: 0=irrelevant  1=same topic  2=same topic+section")

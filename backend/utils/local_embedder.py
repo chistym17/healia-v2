@@ -1,17 +1,5 @@
-import requests
-import os
-from dotenv import load_dotenv
+"""Backward-compatible embedding helpers. Prefer utils.embeddings. """
 
-load_dotenv()
+from utils.embeddings import embed_query, embed_texts, get_embedding
 
-EMBEDDING_SERVER = os.getenv("EMBEDDING_SERVER")
-
-def get_embedding(text: str) -> list[float]:
-    try:
-        response = requests.post(EMBEDDING_SERVER, json={"inputs": text}, timeout=10)
-        response.raise_for_status()
-        return response.json()[0]
-    except Exception as e:
-        print("Embedding error:", e)
-        return []
-
+__all__ = ["get_embedding", "embed_query", "embed_texts"]
