@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import type { ConsultationError } from "@/v2/lib/consultationErrors";
 import { LIVE_PROCESSING_STEPS } from "@/v2/lib/pipeline";
 import {
   completeSession,
@@ -34,7 +36,7 @@ type ConsultationContextValue = {
   liveSessionActive: boolean;
   liveSessionKey: number;
   micEnabled: boolean;
-  connectionError: string | null;
+  connectionError: ConsultationError | null;
   processingSteps: ProcessingStep[];
   completedStepIds: string[];
   activeStepId: string | null;
@@ -53,7 +55,9 @@ type ConsultationContextValue = {
   endLiveSession: () => void;
   stopAgent: () => void;
   resetConsultation: () => void;
-  setConnectionError: (message: string | null) => void;
+  setConnectionError: (error: ConsultationError | null) => void;
+  /** Show a friendly error and tear down LiveKit so nothing keeps retrying. */
+  failConsultation: (error: ConsultationError) => void;
   sendTextMessage: (text: string) => Promise<void>;
   registerTextSender: (sender: ((text: string) => Promise<void>) | null) => void;
   registerMicToggle: (toggle: ((enabled: boolean) => Promise<void>) | null) => void;
@@ -78,7 +82,8 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const [sessionStarted, setSessionStarted] = useState(false);
   const [liveSessionActive, setLiveSessionActive] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] =
+    useState<ConsultationError | null>(null);
   const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [guidanceReady, setGuidanceReady] = useState(false);
@@ -154,6 +159,17 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     setSessionStarted(false);
     setVoiceState("ready");
   }, []);
+
+  const failConsultation = useCallback(
+    (error: ConsultationError) => {
+      setConnectionError(error);
+      setVoiceState("error");
+      setLiveSessionActive(false);
+      setSessionStarted(false);
+      setMicEnabled(false);
+    },
+    [],
+  );
 
   const stopAgent = useCallback(() => {
     setLiveSessionActive(false);
@@ -276,8 +292,10 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
           transcript: transcriptToStored(transcript),
           results: mapGuidanceToStoredResults(result),
         });
+        toast.success("Saved to your history");
       } catch (err) {
         console.error("Failed to save consultation results:", err);
+        toast.error("Couldn't save this consultation. You can still read your results here.");
       }
     },
     [transcript],
@@ -314,6 +332,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       stopAgent,
       resetConsultation,
       setConnectionError,
+      failConsultation,
       sendTextMessage,
       registerTextSender,
       registerMicToggle,
@@ -347,6 +366,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       endLiveSession,
       stopAgent,
       resetConsultation,
+      failConsultation,
       sendTextMessage,
       registerTextSender,
       registerMicToggle,

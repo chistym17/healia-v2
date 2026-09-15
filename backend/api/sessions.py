@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from auth.supabase_auth import get_current_user
 from db import sessions as session_repo
+from security.rate_limit import limit_user
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -78,6 +79,7 @@ def _serialize(row: dict[str, Any] | None) -> dict[str, Any] | None:
 def create_session(
     body: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
+    _: None = Depends(limit_user("session_create", 5, 60.0)),
 ) -> dict[str, Any]:
     row = session_repo.create_session(
         user_id=user["id"],

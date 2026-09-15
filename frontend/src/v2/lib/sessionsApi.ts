@@ -97,6 +97,10 @@ export async function completeSession(
   });
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  await authFetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+}
+
 export function transcriptToStored(
   messages: Array<{ role: "user" | "healia"; text: string }>,
 ): StoredTranscriptMessage[] {

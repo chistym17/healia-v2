@@ -25,4 +25,5 @@ export type LoginCredentials = {
 
 export type SignupCredentials = LoginCredentials & {
   display_name?: string;
+  turnstile_token?: string;
 };

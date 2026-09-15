@@ -1,10 +1,11 @@
+import { useEffect } from "react";
 import { ConsultationLayout } from "@/v2/components/consultation/ConsultationLayout";
+import { ConnectionErrorPanel } from "@/v2/components/consultation/ConnectionErrorPanel";
 import { VoiceStateIndicator } from "@/v2/components/consultation/VoiceStateIndicator";
 import { ConsultationTranscript } from "@/v2/components/consultation/ConsultationTranscript";
 import { VoiceControls } from "@/v2/components/consultation/VoiceControls";
 import { V2Button } from "@/v2/components/V2Button";
 import { useConsultation } from "@/v2/context/ConsultationContext";
-import { useEffect } from "react";
 
 export default function SessionPage() {
   const {
@@ -22,12 +23,15 @@ export default function SessionPage() {
   } = useConsultation();
 
   useEffect(() => {
-    if (!sessionStarted && !liveSessionActive) {
-      // Auto-start once when landing on session (first visit).
+    if (!sessionStarted && !liveSessionActive && !connectionError) {
       startSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRetry = () => {
+    startSession();
+  };
 
   return (
     <ConsultationLayout
@@ -38,19 +42,13 @@ export default function SessionPage() {
     >
       <div className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-consultation flex-col px-5 md:px-8">
         {connectionError ? (
-          <div className="mx-auto mt-10 max-w-md rounded-lg border border-healia-danger/20 bg-healia-danger/[0.04] px-5 py-4 text-center">
-            <p className="text-sm text-healia-text">{connectionError}</p>
-            <div className="mt-4 flex justify-center gap-3">
-              <V2Button
-                className="px-4 py-2 text-sm"
-                onClick={() => startSession()}
-              >
-                Try again
-              </V2Button>
-              <V2Button to="/" variant="secondary" className="px-4 py-2 text-sm">
-                Go back
-              </V2Button>
-            </div>
+          <div className="mt-10">
+            <ConnectionErrorPanel
+              error={connectionError}
+              onRetry={handleRetry}
+              secondaryTo="/consultation"
+              secondaryLabel="Start over"
+            />
           </div>
         ) : (
           <>

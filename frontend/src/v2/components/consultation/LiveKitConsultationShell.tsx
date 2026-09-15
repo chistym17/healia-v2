@@ -9,13 +9,18 @@ import {
   useSession,
   useVoiceAssistant,
 } from "@livekit/components-react";
-import { Room, TokenSource } from "livekit-client";
+import { Room, RoomEvent, TokenSource } from "livekit-client";
 import { useConsultation } from "@/v2/context/ConsultationContext";
 import {
   HEALIA_AGENT_NAME,
   LIVEKIT_TOKEN_URL,
   PIPELINE_TOPIC,
 } from "@/v2/lib/api";
+import { getAccessToken } from "@/v2/lib/authStorage";
+import {
+  classifyConsultationError,
+  consultationErrorFromKind,
+} from "@/v2/lib/consultationErrors";
 import { mapBackendGuidanceToResult } from "@/v2/lib/guidanceMapper";
 import {
   isGuidanceReadyEvent,
@@ -30,6 +35,8 @@ import type { GuidanceResult } from "@/v2/types/consultation";
 
 /** Max wait after guidance before leaving even if speech.completed never arrives. */
 const SPEECH_FALLBACK_MS = 20_000;
+/** Hard cap so a hung connect does not spin forever. */
+const START_TIMEOUT_MS = 25_000;
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -47,15 +54,14 @@ function LiveKitBridge({ room }: { room: Room }) {
     setGuidanceResult,
     goToProcessing,
     goToResults,
-    setConnectionError,
     registerTextSender,
     registerMicToggle,
     setMicEnabled,
     micEnabled,
-    onLiveKitRoomReady,
     onProcessingPersist,
     onCompletePersist,
     endLiveSession,
+    failConsultation,
   } = useConsultation();
 
   const { state } = useVoiceAssistant();
@@ -64,7 +70,8 @@ function LiveKitBridge({ room }: { room: Room }) {
   const guidanceStored = useRef(false);
   const navigatedToResults = useRef(false);
   const guidanceRef = useRef<GuidanceResult | null>(null);
-  const disconnectedAfterSpeech = useRef(false);
+  const intentionalClose = useRef(false);
+  const failedRef = useRef(false);
   const speechFallbackTimer = useRef<number | null>(null);
 
   const openResultsNow = () => {
@@ -79,8 +86,8 @@ function LiveKitBridge({ room }: { room: Room }) {
   };
 
   const disconnectAfterSpeech = () => {
-    if (disconnectedAfterSpeech.current) return;
-    disconnectedAfterSpeech.current = true;
+    if (intentionalClose.current) return;
+    intentionalClose.current = true;
     if (speechFallbackTimer.current != null) {
       window.clearTimeout(speechFallbackTimer.current);
       speechFallbackTimer.current = null;
@@ -92,14 +99,54 @@ function LiveKitBridge({ room }: { room: Room }) {
     }, 400);
   };
 
-  useEffect(() => {
-    setVoiceState(mapAgentStateToVoiceState(state));
-    if (state === "failed") {
-      setConnectionError(
-        "We couldn't connect to Healia. Check that the API and voice agent are running, then try again.",
-      );
+  const failOnce = (error: unknown, kindHint?: "mic_permission" | "network" | "service") => {
+    if (intentionalClose.current || failedRef.current) return;
+    // Successful guidance path: a later disconnect is expected cleanup.
+    if (guidanceStored.current) {
+      intentionalClose.current = true;
+      endLiveSession();
+      return;
     }
-  }, [setConnectionError, setVoiceState, state]);
+    failedRef.current = true;
+    intentionalClose.current = true;
+    if (speechFallbackTimer.current != null) {
+      window.clearTimeout(speechFallbackTimer.current);
+      speechFallbackTimer.current = null;
+    }
+    const classified = kindHint
+      ? consultationErrorFromKind(kindHint)
+      : classifyConsultationError(error);
+    failConsultation(classified);
+  };
+
+  useEffect(() => {
+    if (intentionalClose.current || failedRef.current) return;
+    if (state === "failed") {
+      failOnce("agent failed", "service");
+      return;
+    }
+    // Ignore connecting/idle; only map healthy agent states to voice UI.
+    if (state !== "disconnected") {
+      setVoiceState(mapAgentStateToVoiceState(state));
+    }
+  }, [failConsultation, setVoiceState, state]);
+
+  useEffect(() => {
+    const onDisconnected = () => {
+      failOnce("room disconnected", "network");
+    };
+    const onMediaError = (err: Error) => {
+      failOnce(err, "mic_permission");
+    };
+
+    room.on(RoomEvent.Disconnected, onDisconnected);
+    room.on(RoomEvent.MediaDevicesError, onMediaError);
+
+    return () => {
+      room.off(RoomEvent.Disconnected, onDisconnected);
+      room.off(RoomEvent.MediaDevicesError, onMediaError);
+    };
+  }, [failConsultation, room]);
 
   useEffect(() => {
     registerMicToggle(async (enabled: boolean) => {
@@ -107,13 +154,11 @@ function LiveKitBridge({ room }: { room: Room }) {
         await room.localParticipant.setMicrophoneEnabled(enabled);
       } catch (err) {
         console.error("Mic toggle failed:", err);
-        setConnectionError(
-          "Microphone access failed. Please allow microphone permission and try again.",
-        );
+        failOnce(err, "mic_permission");
       }
     });
     return () => registerMicToggle(null);
-  }, [registerMicToggle, room, setConnectionError]);
+  }, [registerMicToggle, room]);
 
   useEffect(() => {
     void room.localParticipant.setMicrophoneEnabled(micEnabled).catch(() => {
@@ -238,10 +283,15 @@ function LiveKitBridge({ room }: { room: Room }) {
 }
 
 function LiveKitSessionInner({ children }: { children: ReactNode }) {
-  const { setConnectionError, onLiveKitRoomReady } = useConsultation();
+  const { failConsultation, onLiveKitRoomReady } = useConsultation();
 
   const tokenSource = useMemo(
-    () => TokenSource.endpoint(LIVEKIT_TOKEN_URL),
+    () =>
+      TokenSource.endpoint(LIVEKIT_TOKEN_URL, {
+        headers: {
+          Authorization: `Bearer ${getAccessToken() || ""}`,
+        },
+      }),
     [],
   );
 
@@ -267,6 +317,25 @@ function LiveKitSessionInner({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let startTimer: number | null = null;
+
+    const failStart = (error: unknown) => {
+      if (cancelled) return;
+      cancelled = true;
+      if (startTimer != null) {
+        window.clearTimeout(startTimer);
+        startTimer = null;
+      }
+      console.error("Failed to start LiveKit consultation session:", error);
+      failConsultation(classifyConsultationError(error));
+      void session.end().catch(() => {
+        /* already failing */
+      });
+    };
+
+    startTimer = window.setTimeout(() => {
+      failStart(new Error("Connection timed out"));
+    }, START_TIMEOUT_MS);
 
     session
       .start({
@@ -275,19 +344,26 @@ function LiveKitSessionInner({ children }: { children: ReactNode }) {
         },
       })
       .then(() => {
-        if (!cancelled) void onLiveKitRoomReady(roomName);
+        if (cancelled) {
+          void session.end().catch(() => undefined);
+          return;
+        }
+        if (startTimer != null) {
+          window.clearTimeout(startTimer);
+          startTimer = null;
+        }
+        void onLiveKitRoomReady(roomName);
       })
       .catch((error: unknown) => {
-        if (cancelled) return;
-        console.error("Failed to start LiveKit consultation session:", error);
-        setConnectionError(
-          "We couldn't start the consultation. Make sure the backend API and Healia voice agent are running.",
-        );
+        failStart(error);
       });
 
     return () => {
       cancelled = true;
-      void session.end();
+      if (startTimer != null) window.clearTimeout(startTimer);
+      void session.end().catch(() => {
+        /* unmount cleanup */
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

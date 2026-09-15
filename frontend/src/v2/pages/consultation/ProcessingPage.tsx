@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Clock,
@@ -8,6 +9,7 @@ import {
   Shield,
 } from "lucide-react";
 import { ConsultationLayout } from "@/v2/components/consultation/ConsultationLayout";
+import { ConnectionErrorPanel } from "@/v2/components/consultation/ConnectionErrorPanel";
 import { ProcessingSteps } from "@/v2/components/consultation/ProcessingSteps";
 import { useConsultation } from "@/v2/context/ConsultationContext";
 
@@ -37,26 +39,26 @@ function formatElapsed(seconds: number) {
 }
 
 export default function ProcessingPage() {
+  const navigate = useNavigate();
   const {
     processingSteps,
     completedStepIds,
     activeStepId,
     guidanceReady,
     connectionError,
+    startSession,
   } = useConsultation();
 
   const [elapsedSec, setElapsedSec] = useState(0);
 
   useEffect(() => {
+    if (connectionError) return;
     const started = Date.now();
     const id = window.setInterval(() => {
       setElapsedSec(Math.floor((Date.now() - started) / 1000));
     }, 1000);
     return () => window.clearInterval(id);
-  }, []);
-
-  // Results navigation is handled by LiveKit bridge after speech.completed
-  // so the spoken reply is not cut off.
+  }, [connectionError]);
 
   const currentStepId =
     activeStepId ||
@@ -78,10 +80,30 @@ export default function ProcessingPage() {
     return "Taking longer than usual. Please wait — Healia is still preparing your results.";
   }, [elapsedSec, guidanceReady]);
 
+  const handleRetry = () => {
+    startSession();
+    navigate("/consultation/session");
+  };
+
+  if (connectionError) {
+    return (
+      <ConsultationLayout>
+        <div className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-page flex-col items-center justify-center px-5 py-10">
+          <ConnectionErrorPanel
+            error={connectionError}
+            onRetry={handleRetry}
+            retryLabel="Start a new consultation"
+            secondaryTo="/"
+            secondaryLabel="Go home"
+          />
+        </div>
+      </ConsultationLayout>
+    );
+  }
+
   return (
     <ConsultationLayout>
       <div className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-page flex-col px-5 py-5 md:px-8 md:py-6 lg:px-12">
-        {/* Compact header */}
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-healia-brand">
@@ -104,9 +126,7 @@ export default function ProcessingPage() {
           </div>
         </div>
 
-        {/* Left / right cards — fit viewport, minimal scroll */}
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2 lg:gap-5">
-          {/* Left: status + notes */}
           <div className="flex min-h-0 flex-col gap-4">
             <section className="flex flex-1 flex-col rounded-xl border border-healia-brand/20 bg-healia-brand-light/40 p-5 md:p-6">
               <div className="flex items-center gap-2">
@@ -118,38 +138,36 @@ export default function ProcessingPage() {
                     What Healia is doing now
                   </p>
                   <h2 className="text-lg font-semibold text-healia-text">
-                    {connectionError ? "Something went wrong" : currentCopy.title}
+                    {currentCopy.title}
                   </h2>
                 </div>
               </div>
 
               <p className="mt-4 text-sm leading-relaxed text-healia-text-secondary">
-                {connectionError || currentCopy.body}
+                {currentCopy.body}
               </p>
 
-              {!connectionError && (
-                <div className="mt-auto space-y-3 pt-5">
-                  <div className="flex items-start gap-2.5 rounded-lg border border-healia-border/80 bg-healia-bg-secondary/90 px-3 py-2.5">
-                    <MicOff
-                      className="mt-0.5 h-4 w-4 shrink-0 text-healia-text-muted"
-                      strokeWidth={1.75}
-                    />
-                    <p className="text-xs leading-relaxed text-healia-text-secondary">
-                      Your microphone is muted while guidance is prepared, so
-                      talking won&apos;t interrupt Healia.
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2.5 rounded-lg border border-healia-info/20 bg-healia-info/[0.06] px-3 py-2.5">
-                    <Info
-                      className="mt-0.5 h-4 w-4 shrink-0 text-healia-info"
-                      strokeWidth={1.75}
-                    />
-                    <p className="text-xs leading-relaxed text-healia-text-secondary">
-                      {waitHint}
-                    </p>
-                  </div>
+              <div className="mt-auto space-y-3 pt-5">
+                <div className="flex items-start gap-2.5 rounded-lg border border-healia-border/80 bg-healia-bg-secondary/90 px-3 py-2.5">
+                  <MicOff
+                    className="mt-0.5 h-4 w-4 shrink-0 text-healia-text-muted"
+                    strokeWidth={1.75}
+                  />
+                  <p className="text-xs leading-relaxed text-healia-text-secondary">
+                    Your microphone is muted while guidance is prepared, so
+                    talking won&apos;t interrupt Healia.
+                  </p>
                 </div>
-              )}
+                <div className="flex items-start gap-2.5 rounded-lg border border-healia-info/20 bg-healia-info/[0.06] px-3 py-2.5">
+                  <Info
+                    className="mt-0.5 h-4 w-4 shrink-0 text-healia-info"
+                    strokeWidth={1.75}
+                  />
+                  <p className="text-xs leading-relaxed text-healia-text-secondary">
+                    {waitHint}
+                  </p>
+                </div>
+              </div>
             </section>
 
             <aside className="rounded-xl border border-healia-border-subtle bg-healia-bg-secondary p-4 md:p-5">
@@ -176,7 +194,6 @@ export default function ProcessingPage() {
             </aside>
           </div>
 
-          {/* Right: progress steps */}
           <section className="flex min-h-0 flex-col rounded-xl border border-healia-border bg-healia-bg-secondary p-5 md:p-6">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
@@ -194,18 +211,14 @@ export default function ProcessingPage() {
               )}
             </div>
 
-            {connectionError ? (
-              <p className="text-sm text-healia-danger">{connectionError}</p>
-            ) : (
-              <div className="min-h-0 flex-1">
-                <ProcessingSteps
-                  steps={processingSteps}
-                  completedStepIds={completedStepIds}
-                  activeStepId={activeStepId}
-                  compact
-                />
-              </div>
-            )}
+            <div className="min-h-0 flex-1">
+              <ProcessingSteps
+                steps={processingSteps}
+                completedStepIds={completedStepIds}
+                activeStepId={activeStepId}
+                compact
+              />
+            </div>
 
             <p className="mt-4 border-t border-healia-border-subtle pt-3 text-xs text-healia-text-muted">
               Your consultation conversation is complete. Healia is finishing

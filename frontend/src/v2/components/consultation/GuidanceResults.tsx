@@ -1,4 +1,6 @@
-import { AlertTriangle, ExternalLink } from "lucide-react";
+import { AlertTriangle, Check, Copy, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import type { GuidanceResult } from "@/v2/types/consultation";
 
 type GuidanceResultsProps = {
@@ -13,11 +15,75 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+function formatGuidanceForCopy(guidance: GuidanceResult): string {
+  const lines = [
+    "Healia guidance",
+    "",
+    "Summary",
+    guidance.summary,
+    "",
+    "What may be going on",
+    guidance.possibleConcerns,
+    "",
+    "What you can do now",
+    ...guidance.actions.map((action, i) => `${i + 1}. ${action}`),
+    "",
+    "Warning signs",
+    guidance.warningSigns,
+    "",
+    "When to seek medical care",
+    guidance.seekCare,
+  ];
+
+  if (guidance.references.length > 0) {
+    lines.push(
+      "",
+      "References",
+      ...guidance.references.map((ref) => `- ${ref.title} (${ref.source})`),
+    );
+  }
+
+  lines.push(
+    "",
+    "Educational guidance only — not a medical diagnosis or treatment plan.",
+  );
+
+  return lines.join("\n");
+}
+
 export function GuidanceResults({ guidance }: GuidanceResultsProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(formatGuidanceForCopy(guidance));
+      setCopied(true);
+      toast.success("Summary copied");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy. Try selecting the text instead.");
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:gap-10">
       {/* Main guidance — open typography, no cards */}
       <div className="flex min-h-0 min-w-0 flex-[1.35] flex-col">
+        <div className="mb-3 flex justify-start">
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-healia-border bg-healia-bg-secondary px-3 py-1.5 text-xs font-medium text-healia-text-secondary transition-colors hover:bg-healia-brand-light hover:text-healia-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-healia-brand"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-healia-success" strokeWidth={1.75} />
+            ) : (
+              <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+            )}
+            {copied ? "Copied" : "Copy summary"}
+          </button>
+        </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto healia-transcript-scroll pr-1">
           <p className="text-lg font-medium leading-snug tracking-tight text-healia-text md:text-xl md:leading-snug">
             {guidance.summary}
