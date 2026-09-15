@@ -1,76 +1,51 @@
-##  Healia – Voice-Powered AI Health Consultant
+# Healia
 
-## Inspiration
-We were inspired by the idea of making healthcare advice more accessible and inclusive, especially for those who may find typing or navigating apps difficult. Voice is the most natural way to communicate — so we created Healia, a voice-powered AI health consultant that listens to your symptoms and provides smart, AI-driven suggestions.
+Calm, voice-first AI health consultation. Users describe symptoms, answer focused follow-ups, and get evidence-based guidance — not a diagnosis.
 
-## What It Does
-Healia allows users to:
+## Architecture
 
-🎙️ Speak their symptoms using voice input
+```text
+React (Vite)  →  FastAPI  →  LiveKit agent
+                    ↓              ↓
+               Supabase Auth   Assessment RAG (MedQuAD)
+               Session history Knowledge RAG (StatPearls / hybrid FAISS+BM25)
+                    ↓              ↓
+               Postgres        Embeddings (local TEI or Hugging Face MiniLM)
+```
 
-🧠 Analyze their input using AI for understanding and response
+**Product docs (source of truth):**
 
-🔍 Provide accurate health suggestions and trusted resources
+- [`frontend/PRODUCT.md`](frontend/PRODUCT.md) — scope & journey
+- [`frontend/UX.md`](frontend/UX.md) — interaction rules
+- [`frontend/DESIGN.md`](frontend/DESIGN.md) — visual system
+- [`db/README.md`](db/README.md) — schema & Supabase setup
 
-🌐 Fetch relevant real-time results from the web
+## Stack
 
-In the future, Healia will also respond back using voice, creating a two-way AI health conversation.
+| Layer | Tech |
+|---|---|
+| Frontend | React, Vite, Tailwind |
+| API | FastAPI (auth, sessions, LiveKit token) |
+| Voice | LiveKit + AssemblyAI STT + Google TTS |
+| Data | Supabase Auth + Postgres (RLS) |
+| RAG | FAISS + BM25, optional BGE rerank |
+| Bot check | Cloudflare Turnstile (signup) |
 
-## How We Built It
-### Tech Stack
-Frontend: React.js
+## Local run (short)
 
-Backend: Python with FastAPI
+1. Apply [`db/schema.sql`](db/schema.sql) in Supabase; copy [`db/.env.example`](db/.env.example) → `backend/.env`.
+2. Frontend: copy [`frontend/.env.example`](frontend/.env.example) → `frontend/.env`.
+3. Backend: `cd backend && uvicorn main:app --reload --port 8000`
+4. Agent: run the LiveKit worker from `backend/livekit_agent` (see that package).
+5. Frontend: `cd frontend && npm install && npm run dev` (port 3000).
 
-Speech-to-Text:
+Embeddings:
 
-Tested: OpenAI Whisper, ElevenLabs
+- Local: `EMBEDDING_PROVIDER=local` + TEI at `EMBEDDING_SERVER`
+- Deploy / no TEI: `EMBEDDING_PROVIDER=huggingface` + `HF_TOKEN` (same MiniLM model as the indexes)
 
-Chosen: AssemblyAI for its accuracy and API simplicity
+Keep `RERANK_ENABLED=false` unless a rerank server is running.
 
-AI Reasoning: LangChain + Gemini AI
+## Disclaimer
 
-Vector Search: FAISS for semantic symptom matching
-
-Web Search: Travily for live medical resource fetching
-
-## What We Learned
-How to build a voice-based interface using speech recognition
-
-Implementing semantic vector search with FAISS
-
-Using LangChain to orchestrate reasoning with Gemini AI
-
-Filtering and verifying AI output for medical relevance and accuracy
-
-Building a multi-stage pipeline involving voice, AI, and web search
-
-## Challenges We Faced
-Collecting and structuring accurate health-related data
-
-Ensuring AI provides reliable and relevant suggestions
-
-Connecting all components (voice, vector DB, AI, web search) into a smooth pipeline
-
-## Accomplishments We're Proud Of
-Successfully integrated voice input, FAISS, LangChain, Gemini AI, and web search
-
-Built a working demo that accepts voice and gives back tailored health suggestions
-
-Designed a clean UI with React.js that’s easy for users to interact with
-
-Created a strong foundation for building a fully conversational AI assistant
-
-##  What's Next for Healia
-🗣️ Add voice-based AI replies (using ElevenLabs or similar)
-
-💬 Make it fully conversational with memory and history tracking
-
-🌍 Enable multi-language support
-
-📈 Improve with real user feedback and more medical datasets
-
-🔒 Ensure better privacy and security for handling voice data
-
-🎯 Final Thought
-Healia is just the beginning of a future where AI can assist users in a natural, friendly, and voice-driven way. We're excited to continue building a product that makes basic healthcare more accessible — one voice at a time. 💙
+Healia provides educational guidance only. It is not a medical diagnosis or substitute for professional care. For emergencies, seek urgent care.
