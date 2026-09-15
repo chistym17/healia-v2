@@ -14,6 +14,7 @@ import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import LiveVoicePage from "./pages/LiveVoicePage";
 import HomePage from "@/v2/pages/HomePage";
+import ConsultationRoutes from "@/v2/pages/consultation/ConsultationRoutes";
 import { PlaceholderPage } from "@/v2/pages/PlaceholderPage";
 
 const queryClient = new QueryClient();
@@ -34,15 +35,7 @@ const App = () => (
           <Route path="/features" element={<Features />} />
           <Route path="/about" element={<About />} />
           <Route path="/v2" element={<HomePage />} />
-          <Route
-            path="/v2/consultation"
-            element={
-              <PlaceholderPage
-                title="Start Consultation"
-                description="The consultation flow is coming next. This page will prepare you before starting a voice health assessment."
-              />
-            }
-          />
+          <Route path="/v2/consultation/*" element={<ConsultationRoutes />} />
           <Route
             path="/v2/about"
             element={

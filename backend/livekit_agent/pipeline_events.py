@@ -224,12 +224,25 @@ def guidance_completed_event(
     spoken = str(guidance.get("spoken_answer") or "")
     citations = guidance.get("citations") or []
     confidence = guidance.get("confidence")
+    # Full Results payload for the frontend (v2 Results page).
+    results = {
+        "summary": guidance.get("summary") or "",
+        "possible_concerns": guidance.get("possible_concerns") or "",
+        "actions": guidance.get("actions") or [],
+        "warning_signs": guidance.get("warning_signs") or "",
+        "seek_care": guidance.get("seek_care") or "",
+        "spoken_answer": spoken,
+        "detailed_answer": guidance.get("detailed_answer") or spoken,
+        "citations": citations[:10] if isinstance(citations, list) else [],
+        "confidence": confidence,
+    }
     return (
         f"Guidance ready ({confidence or 'unknown'} confidence)",
         {
             "confidence": confidence,
             "spoken_chars": len(spoken),
-            "citation_count": len(citations),
-            "citations": citations[:5],
+            "citation_count": len(citations) if isinstance(citations, list) else 0,
+            "citations": citations[:5] if isinstance(citations, list) else [],
+            "results": results,
         },
     )
