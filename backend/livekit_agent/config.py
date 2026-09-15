@@ -121,6 +121,20 @@ def effective_knowledge_rag_mode(mode: str | None = None) -> str:
 PIPELINE_EVENTS_ENABLED = True
 PIPELINE_EVENTS_LOG_JSON = True
 PIPELINE_EVENTS_TO_ROOM = True
+# Mirror RAG/guidance phases to FastAPI stdout (separate from voice agent logs).
+PIPELINE_EVENTS_TO_API = _env_bool("PIPELINE_EVENTS_TO_API", True)
+HEALIA_API_BASE_URL = (
+    os.getenv("HEALIA_API_URL") or "http://127.0.0.1:8000"
+).rstrip("/")
+# Phases mirrored to FastAPI — not voice turn/speech/supervisor chatter.
+PIPELINE_API_MIRROR_PHASES = frozenset(
+    {
+        "assessment_rag",
+        "case_package",
+        "knowledge_rag",
+        "guidance",
+    }
+)
 
 # Gemini voice instructions when SUPERVISOR_MODE == "controlled"
 CONTROLLED_VOICE_INSTRUCTIONS = """

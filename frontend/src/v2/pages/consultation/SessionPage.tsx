@@ -47,7 +47,7 @@ export default function SessionPage() {
               >
                 Try again
               </V2Button>
-              <V2Button to="/v2" variant="secondary" className="px-4 py-2 text-sm">
+              <V2Button to="/" variant="secondary" className="px-4 py-2 text-sm">
                 Go back
               </V2Button>
             </div>

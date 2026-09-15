@@ -10,6 +10,7 @@ import logging
 
 from api.router import router as api_router
 from api.livekit import router as livekit_router
+from api.pipeline_logs import router as pipeline_logs_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +37,7 @@ app.add_middleware(
 app.include_router(api_router, tags=["API"])
 app.include_router(demo_router, tags=["Demo"])
 app.include_router(livekit_router)
+app.include_router(pipeline_logs_router)
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="."), name="static")

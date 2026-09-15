@@ -158,21 +158,21 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
 
   const goToProcessing = useCallback(() => {
     setMicEnabled(false);
-    navigate("/v2/consultation/processing");
+    navigate("/consultation/processing");
   }, [navigate]);
 
   const goToResults = useCallback(() => {
-    navigate("/v2/consultation/results");
+    navigate("/consultation/results");
   }, [navigate]);
 
   const endConsultation = useCallback(() => {
     // Manual end — if guidance already ready, go to results; else processing.
     if (guidanceReady) {
-      navigate("/v2/consultation/results");
+      navigate("/consultation/results");
       return;
     }
     markProcessingStep("symptoms", "active");
-    navigate("/v2/consultation/processing");
+    navigate("/consultation/processing");
   }, [guidanceReady, markProcessingStep, navigate]);
 
   const registerTextSender = useCallback(

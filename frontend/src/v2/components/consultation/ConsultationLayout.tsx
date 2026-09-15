@@ -29,7 +29,7 @@ export function ConsultationLayout({
       <header className="border-b border-healia-border-subtle bg-healia-bg/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-page items-center justify-between px-5 md:px-8 lg:px-12">
           <Link
-            to="/v2"
+            to="/"
             className="flex items-center gap-2 text-healia-text transition-opacity hover:opacity-80"
           >
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-healia-brand text-xs font-semibold text-white">

@@ -39,8 +39,8 @@ export default function StartConsultationPage() {
         </p>
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <V2Button to="/v2/consultation/session">Start Consultation</V2Button>
-          <V2Button to="/v2" variant="secondary">
+          <V2Button to="/consultation/session">Start Consultation</V2Button>
+          <V2Button to="/" variant="secondary">
             Go Back
           </V2Button>
         </div>

@@ -10,7 +10,7 @@ export function CtaSection() {
           </h2>
           <div className="mt-8">
             <V2Button
-              to="/v2/consultation"
+              to="/consultation"
               className="bg-white text-healia-brand hover:bg-healia-brand-light focus-visible:ring-white"
             >
               Start Consultation

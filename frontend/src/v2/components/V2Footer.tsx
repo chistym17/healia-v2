@@ -4,7 +4,7 @@ import { V2Button } from "./V2Button";
 function FooterLogo() {
   return (
     <Link
-      to="/v2"
+      to="/"
       className="inline-flex items-center gap-2.5 text-healia-text transition-opacity hover:opacity-80"
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-healia-brand text-sm font-semibold text-white">
@@ -16,13 +16,13 @@ function FooterLogo() {
 }
 
 const exploreLinks = [
-  { label: "Home", to: "/v2" },
-  { label: "Start Consultation", to: "/v2/consultation" },
+  { label: "Home", to: "/" },
+  { label: "Start Consultation", to: "/consultation" },
 ];
 
 const companyLinks = [
-  { label: "About", to: "/v2/about" },
-  { label: "Privacy", to: "/v2/privacy" },
+  { label: "About", to: "/about" },
+  { label: "Privacy", to: "/privacy" },
 ];
 
 export function V2Footer() {
@@ -38,7 +38,7 @@ export function V2Footer() {
               get evidence-based guidance, and know when to seek care.
             </p>
             <div className="mt-6">
-              <V2Button to="/v2/consultation" className="px-5 py-2.5 text-sm">
+              <V2Button to="/consultation" className="px-5 py-2.5 text-sm">
                 Start Consultation
               </V2Button>
             </div>

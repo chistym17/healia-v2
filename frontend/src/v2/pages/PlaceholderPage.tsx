@@ -15,7 +15,7 @@ export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
           {description}
         </p>
         <div className="mt-8">
-          <V2Button to="/v2" variant="secondary">
+          <V2Button to="/" variant="secondary">
             Back to Home
           </V2Button>
         </div>

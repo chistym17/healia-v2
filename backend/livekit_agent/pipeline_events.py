@@ -11,6 +11,8 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
+import requests
+
 from livekit_agent import config
 from livekit_agent.events import log_event
 
@@ -97,6 +99,50 @@ def _schedule_publish(session_id: str, event: dict[str, Any]) -> None:
     loop.create_task(_run())
 
 
+def _mirror_payload_for_api(event: dict[str, Any]) -> dict[str, Any]:
+    """Drop bulky guidance.results so FastAPI logs stay readable."""
+    mirrored = dict(event)
+    data = dict(event.get("data") or {})
+    if "results" in data and isinstance(data["results"], dict):
+        data = {
+            **{k: v for k, v in data.items() if k != "results"},
+            "results_summary": {
+                "has_summary": bool(data["results"].get("summary")),
+                "action_count": len(data["results"].get("actions") or []),
+                "citation_count": len(data["results"].get("citations") or []),
+                "confidence": data["results"].get("confidence"),
+            },
+        }
+    mirrored["data"] = data
+    return mirrored
+
+
+def _mirror_to_fastapi(event: dict[str, Any]) -> None:
+    """Post RAG/guidance phases to FastAPI so they appear in the API terminal."""
+    if not getattr(config, "PIPELINE_EVENTS_TO_API", True):
+        return
+    phase = str(event.get("phase") or "")
+    mirror_phases = getattr(
+        config,
+        "PIPELINE_API_MIRROR_PHASES",
+        frozenset({"assessment_rag", "case_package", "knowledge_rag", "guidance"}),
+    )
+    if phase not in mirror_phases:
+        return
+
+    url = f"{config.HEALIA_API_BASE_URL}/api/pipeline/events"
+    payload = _mirror_payload_for_api(event)
+
+    def _post() -> None:
+        try:
+            requests.post(url, json=payload, timeout=2.5)
+        except Exception:
+            # Never break the voice agent if FastAPI is down.
+            pass
+
+    threading.Thread(target=_post, daemon=True, name="healia-rag-mirror").start()
+
+
 def emit_pipeline_event(
     *,
     session_id: str,
@@ -110,10 +156,11 @@ def emit_pipeline_event(
     """
     Emit a structured pipeline event.
 
-    - Logs a human-readable line via log_event
+    - Logs a human-readable line via log_event (agent terminal — keep as-is)
     - Logs JSON on the healia.pipeline logger (for grep / log shippers)
     - Stores per-session history (for debugging / future HTTP poll)
     - Publishes to a registered session publisher (e.g. LiveKit data channel)
+    - Mirrors RAG/guidance phases to FastAPI stdout
     """
     if not config.PIPELINE_EVENTS_ENABLED:
         return {}
@@ -159,6 +206,8 @@ def emit_pipeline_event(
 
     if config.PIPELINE_EVENTS_TO_ROOM:
         _schedule_publish(session_id, event)
+
+    _mirror_to_fastapi(event)
 
     return event
 
