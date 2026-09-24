@@ -1,13 +1,8 @@
-"""Upload local FAISS stores into Qdrant Cloud collections (dense-only).
-
-For dense + BM25 sparse (recommended), use:
-  python -m qdrant.upload_hybrid assessment|knowledge --recreate
-"""
+"""Upload local FAISS stores to Qdrant with dense + sparse BM25 vectors."""
 
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from pathlib import Path
 
@@ -18,7 +13,7 @@ load_dotenv(BACKEND / ".env")
 
 from qdrant import config
 from qdrant.client import get_client
-from qdrant.collections import collection_info, ensure_collection
+from qdrant.collections import collection_info, ensure_hybrid_collection
 from qdrant.export import (
     ASSESSMENT_STORE,
     KNOWLEDGE_STORE,
@@ -27,9 +22,10 @@ from qdrant.export import (
     iter_point_batches,
     knowledge_payload,
 )
+from qdrant.sparse import text_to_sparse
 
 
-def _upsert_store(
+def _upsert_hybrid(
     *,
     collection: str,
     store_dir: Path,
@@ -43,12 +39,12 @@ def _upsert_store(
         raise FileNotFoundError(f"Store not found: {store_dir}")
 
     total = count_metadata(store_dir)
-    print(f"Collection : {collection}")
+    print(f"Collection : {collection} (dense + sparse BM25)")
     print(f"Store      : {store_dir}")
     print(f"Points     : {total}")
     print(f"Batch size : {batch_size}")
 
-    created = ensure_collection(collection, recreate=recreate)
+    created = ensure_hybrid_collection(collection, recreate=recreate)
     print(f"{'Recreated' if recreate else 'Ensured'} collection (new={created})")
 
     client = get_client()
@@ -58,10 +54,19 @@ def _upsert_store(
     for ids, vectors, payloads in iter_point_batches(
         store_dir, payload_fn=payload_fn, batch_size=batch_size
     ):
-        points = [
-            PointStruct(id=i, vector=vec, payload=payload)
-            for i, vec, payload in zip(ids, vectors, payloads)
-        ]
+        points = []
+        for i, vec, payload in zip(ids, vectors, payloads):
+            text = str(payload.get("text") or payload.get("question") or "")
+            points.append(
+                PointStruct(
+                    id=i,
+                    vector={
+                        config.DENSE_VECTOR: vec,
+                        config.SPARSE_VECTOR: text_to_sparse(text),
+                    },
+                    payload=payload,
+                )
+            )
         client.upsert(collection_name=collection, points=points, wait=True)
         uploaded += len(points)
         elapsed = time.monotonic() - t0
@@ -80,7 +85,7 @@ def _upsert_store(
 
 
 def upload_assessment(*, batch_size: int = 128, recreate: bool = False) -> None:
-    _upsert_store(
+    _upsert_hybrid(
         collection=config.ASSESSMENT_COLLECTION,
         store_dir=ASSESSMENT_STORE,
         payload_fn=assessment_payload,
@@ -90,7 +95,7 @@ def upload_assessment(*, batch_size: int = 128, recreate: bool = False) -> None:
 
 
 def upload_knowledge(*, batch_size: int = 64, recreate: bool = False) -> None:
-    _upsert_store(
+    _upsert_hybrid(
         collection=config.KNOWLEDGE_COLLECTION,
         store_dir=KNOWLEDGE_STORE,
         payload_fn=knowledge_payload,
@@ -100,7 +105,9 @@ def upload_knowledge(*, batch_size: int = 64, recreate: bool = False) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Upload Healia FAISS indexes to Qdrant")
+    parser = argparse.ArgumentParser(
+        description="Upload Healia indexes to Qdrant (dense + BM25 sparse)"
+    )
     parser.add_argument(
         "target",
         choices=("assessment", "knowledge", "all"),
@@ -109,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--recreate",
         action="store_true",
-        help="Delete and recreate the collection before upload",
+        help="Delete and recreate the hybrid collection before upload",
     )
     parser.add_argument("--batch-size", type=int, default=0, help="Upsert batch size")
     args = parser.parse_args(argv)

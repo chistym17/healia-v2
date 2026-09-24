@@ -14,6 +14,10 @@ VECTOR_SIZE = 384
 KNOWLEDGE_COLLECTION = "healia_knowledge"
 ASSESSMENT_COLLECTION = "healia_assessment"
 
+# Named vectors for hybrid (dense + sparse BM25)
+DENSE_VECTOR = "dense"
+SPARSE_VECTOR = "bm25"
+
 
 def url() -> str:
     return (os.getenv("QDRANT_URL") or "").strip().rstrip("/")
@@ -33,6 +37,14 @@ def timeout_sec() -> int:
 
 def is_configured() -> bool:
     return bool(url() and api_key())
+
+
+def vector_backend() -> str:
+    """local = FAISS+bm25.pkl | qdrant = Cloud dense+sparse."""
+    raw = (os.getenv("VECTOR_BACKEND") or "local").strip().lower()
+    if raw in ("qdrant", "cloud"):
+        return "qdrant"
+    return "local"
 
 
 def url_host() -> str:

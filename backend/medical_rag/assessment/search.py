@@ -200,38 +200,69 @@ def search_questions(
             "query": query,
         }
 
-    index, metadata, cfg = _load_index()
-    qvec = _embed_query(query, cfg)
-    scores, indices = index.search(qvec, top_k)
+    from qdrant.config import vector_backend
 
     raw_hits: list[dict[str, Any]] = []
-    for idx, score in zip(indices[0], scores[0]):
-        if idx < 0:
-            continue
-        row = metadata[int(idx)]
-        meta = row.get("metadata") or {}
-        medical_topic = (row.get("topic") or meta.get("topic") or "").strip()
-        canonical = (row.get("question") or meta.get("question") or "").strip()
-        qtype = str(meta.get("question_type") or "general")
-        if not canonical:
-            continue
-        raw_hits.append(
-            {
-                "topic": _topic_key(meta),
-                "canonical_question": canonical,
-                "question": to_conversational(
-                    qtype,
-                    medical_topic,
-                    chief_complaint=chief_complaint,
-                    patient_turn=patient_turn,
-                ),
-                "medical_topic": medical_topic,
-                "question_type": qtype,
-                "theme": TYPE_THEMES.get(qtype, qtype),
-                "score": float(score),
-                "id": row.get("id", ""),
-            }
-        )
+
+    if vector_backend() == "qdrant":
+        from qdrant.search import search_assessment_raw
+
+        for row in search_assessment_raw(query, top_k=top_k):
+            meta = row.get("metadata") or {}
+            medical_topic = (row.get("topic") or meta.get("topic") or "").strip()
+            canonical = (row.get("question") or meta.get("question") or "").strip()
+            qtype = str(meta.get("question_type") or "general")
+            if not canonical:
+                continue
+            raw_hits.append(
+                {
+                    "topic": _topic_key(meta),
+                    "canonical_question": canonical,
+                    "question": to_conversational(
+                        qtype,
+                        medical_topic,
+                        chief_complaint=chief_complaint,
+                        patient_turn=patient_turn,
+                    ),
+                    "medical_topic": medical_topic,
+                    "question_type": qtype,
+                    "theme": TYPE_THEMES.get(qtype, qtype),
+                    "score": float(row.get("score") or 0.0),
+                    "id": row.get("id", ""),
+                }
+            )
+    else:
+        index, metadata, cfg = _load_index()
+        qvec = _embed_query(query, cfg)
+        scores, indices = index.search(qvec, top_k)
+
+        for idx, score in zip(indices[0], scores[0]):
+            if idx < 0:
+                continue
+            row = metadata[int(idx)]
+            meta = row.get("metadata") or {}
+            medical_topic = (row.get("topic") or meta.get("topic") or "").strip()
+            canonical = (row.get("question") or meta.get("question") or "").strip()
+            qtype = str(meta.get("question_type") or "general")
+            if not canonical:
+                continue
+            raw_hits.append(
+                {
+                    "topic": _topic_key(meta),
+                    "canonical_question": canonical,
+                    "question": to_conversational(
+                        qtype,
+                        medical_topic,
+                        chief_complaint=chief_complaint,
+                        patient_turn=patient_turn,
+                    ),
+                    "medical_topic": medical_topic,
+                    "question_type": qtype,
+                    "theme": TYPE_THEMES.get(qtype, qtype),
+                    "score": float(score),
+                    "id": row.get("id", ""),
+                }
+            )
 
     suggested = _diversify_hits(
         raw_hits, max_suggestions=max_suggestions, asked=asked

@@ -39,6 +39,7 @@ def retrieve_knowledge(
 ) -> dict[str, Any]:
     """Retrieve grounded medical reference chunks for a final consultation query."""
     from livekit_agent.config import effective_knowledge_rag_mode
+    from qdrant.config import vector_backend
 
     query = (query or "").strip()
     mode = (mode or "rerank").lower().strip()
@@ -57,6 +58,24 @@ def retrieve_knowledge(
         fallback_note = "rerank_disabled_via_env"
 
     try:
+        if vector_backend() == "qdrant":
+            from qdrant.search import search_knowledge
+
+            chunks = search_knowledge(
+                query, mode=effective_mode, top_k=top_k
+            )
+            result: dict[str, Any] = {
+                "source": "qdrant",
+                "query": query,
+                "mode": effective_mode,
+                "requested_mode": mode,
+                "chunks": chunks,
+                "error": None,
+            }
+            if fallback_note:
+                result["fallback"] = fallback_note
+            return result
+
         if _needs_bm25(effective_mode) or _needs_bm25(mode):
             try:
                 retriever = _get_retriever(load_bm25=True)
@@ -72,7 +91,7 @@ def retrieve_knowledge(
             fallback_note = fallback_note or "bm25_index_missing"
 
         chunks = retriever.search(query, mode=effective_mode, top_k=top_k)
-        result: dict[str, Any] = {
+        result = {
             "source": "medical_rag",
             "query": query,
             "mode": effective_mode,
