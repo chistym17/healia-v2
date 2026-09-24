@@ -1,10 +1,12 @@
-"""Tunable LiveKit + Gemini Live settings.
+"""Tunable LiveKit + Gemini Live (voice) + Groq text LLM settings.
 
 Edit values here while testing. Agent code should only read from this module.
 
 Env overrides (optional):
   RERANK_ENABLED=true|false  — turn BGE cross-encoder on/off (default true).
                                When false and mode is rerank, falls back to hybrid.
+  SUPERVISOR_MODEL / GUIDANCE_MODEL — Groq model ids (default openai/gpt-oss-20b)
+  GROQ_API_KEY — required for supervisor + guidance text LLM
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Model ---
+# --- Voice model (Gemini Realtime — keep for speak/listen) ---
 MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 VOICE = "Puck"
 TEMPERATURE = 0.5
@@ -50,7 +52,7 @@ TURN_ENDPOINTING_MIN_DELAY_S = 0.0
 
 # --- Gemini VAD ---
 VAD_ENABLED = True
-SILENCE_DURATION_MS = 500
+SILENCE_DURATION_MS = 900
 PREFIX_PADDING_MS = 200
 START_OF_SPEECH_SENSITIVITY = "HIGH"
 END_OF_SPEECH_SENSITIVITY = "HIGH"
@@ -58,32 +60,42 @@ END_OF_SPEECH_SENSITIVITY = "HIGH"
 # --- Part 2: AssemblyAI STT (logging only; does not control replies) ---
 STT_ENABLED = True
 STT_MODEL = "universal-streaming-english"
-STT_SETTLE_MS = 400
+# Wait after speech ends before committing the turn (gives user time to finish).
+STT_SETTLE_MS = 1000
 STT_LOG_INTERIM = False
 # Only used when TURN_DETECTION == "stt".
-STT_MIN_TURN_SILENCE_MS = 100
-STT_MAX_TURN_SILENCE_MS = 900
+STT_MIN_TURN_SILENCE_MS = 300
+STT_MAX_TURN_SILENCE_MS = 1500
 STT_VOICE_FOCUS = None
 
-# --- Part 3: Supervisor ---
+# --- Part 3: Supervisor (text LLM via Groq — not realtime voice) ---
 SUPERVISOR_ENABLED = True
 # log_only  = step 1: supervisor logs decisions; Gemini still free-chats
 # controlled = step 2: Gemini speaks only supervisor spoken_utterance
 SUPERVISOR_MODE = "controlled"
-SUPERVISOR_MODEL = "gemini-2.5-flash-lite"  # 3.5-flash-lite ~130s in smoke; 2.5 ~1–2s
+# Groq OpenAI GPT-OSS (override with SUPERVISOR_MODEL env)
+SUPERVISOR_MODEL = (
+    os.getenv("SUPERVISOR_MODEL") or "openai/gpt-oss-20b"
+).strip()
 SUPERVISOR_TEMPERATURE = 0.2
 SUPERVISOR_MAX_FOLLOWUPS = 8
+SUPERVISOR_TIMEOUT_SEC = float(os.getenv("SUPERVISOR_TIMEOUT_SEC") or "15")
+LLM_FATAL_UTTERANCE = (
+    "I'm having a technical problem and need to end this consultation. "
+    "Please try again in a little while."
+)
 
 # --- Part 4: Mock assessment RAG (interface only) ---
 ASSESSMENT_RAG_ENABLED = True
 
-# --- Part 5: Knowledge RAG + grounded guidance (StatPearls corpus) ---
+# --- Part 5: Knowledge RAG + spoken guidance (StatPearls corpus) ---
 KNOWLEDGE_RAG_ENABLED = True
 KNOWLEDGE_RAG_MODE = "rerank"  # faiss | bm25 | hybrid | rerank
 KNOWLEDGE_RAG_TOP_K = 5
-GUIDANCE_MODEL = SUPERVISOR_MODEL
+GUIDANCE_MODEL = (os.getenv("GUIDANCE_MODEL") or SUPERVISOR_MODEL).strip()
 GUIDANCE_TEMPERATURE = 0.3
 GUIDANCE_MAX_OUTPUT_TOKENS = 1024
+GUIDANCE_TIMEOUT_SEC = float(os.getenv("GUIDANCE_TIMEOUT_SEC") or "20")
 
 
 def _env_bool(name: str, default: bool = True) -> bool:
@@ -116,6 +128,7 @@ def effective_knowledge_rag_mode(mode: str | None = None) -> str:
     if resolved in ("rerank", "hybrid_rerank") and not is_rerank_enabled():
         return "hybrid"
     return resolved
+
 
 # --- Pipeline observability (logs + optional LiveKit data channel for UI) ---
 PIPELINE_EVENTS_ENABLED = True

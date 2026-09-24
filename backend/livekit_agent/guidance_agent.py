@@ -1,4 +1,4 @@
-"""Grounded guidance generation from medical RAG chunks (Gemini JSON)."""
+"""Grounded guidance generation from medical RAG chunks (Groq JSON)."""
 
 from __future__ import annotations
 
@@ -6,10 +6,8 @@ import json
 import re
 from typing import Any
 
-from google.genai import types
-
 from livekit_agent import config
-from livekit_agent.supervisor import get_supervisor_client
+from livekit_agent.llm_client import groq_json_completion
 
 _SYSTEM_PROMPT = """
 You are Healia's medical knowledge assistant (backend). You turn retrieved reference
@@ -157,7 +155,7 @@ async def generate_guidance(
     facts: dict[str, Any] | None,
     chunks: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Call Gemini to produce voice-friendly grounded guidance."""
+    """Call Groq to produce voice-friendly grounded guidance."""
     if not chunks:
         return {
             "spoken_answer": "",
@@ -180,18 +178,13 @@ async def generate_guidance(
         chunks=chunks,
     )
 
-    client = get_supervisor_client()
-    response = await client.aio.models.generate_content(
+    text = await groq_json_completion(
+        system=_SYSTEM_PROMPT,
+        user=user_prompt,
         model=config.GUIDANCE_MODEL,
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=_SYSTEM_PROMPT,
-            temperature=config.GUIDANCE_TEMPERATURE,
-            response_mime_type="application/json",
-            max_output_tokens=config.GUIDANCE_MAX_OUTPUT_TOKENS,
-        ),
+        temperature=config.GUIDANCE_TEMPERATURE,
+        max_tokens=config.GUIDANCE_MAX_OUTPUT_TOKENS,
     )
-    text = (response.text or "").strip()
     parsed = parse_guidance_response(_extract_json(text))
     parsed["error"] = None
     return parsed

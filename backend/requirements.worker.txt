@@ -3,6 +3,7 @@ python-dotenv
 requests
 numpy
 qdrant-client
+groq
 google-genai
 livekit-agents[google]~=1.6
 livekit-api

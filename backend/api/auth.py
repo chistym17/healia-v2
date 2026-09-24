@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from auth.supabase_auth import (
@@ -11,6 +11,7 @@ from auth.supabase_auth import (
     refresh_session,
     signup_email,
 )
+from livekit_warm import warm_livekit_agent
 from security.rate_limit import limit_ip
 from security.turnstile import client_ip, verify_turnstile_token
 
@@ -37,28 +38,34 @@ class RefreshRequest(BaseModel):
 def signup(
     body: SignupRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     _: None = Depends(limit_ip("auth_signup", 5, 60.0)),
 ) -> dict[str, Any]:
     verify_turnstile_token(body.turnstile_token, remote_ip=client_ip(request))
     try:
-        return signup_email(body.email, body.password, body.display_name)
+        result = signup_email(body.email, body.password, body.display_name)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    background_tasks.add_task(warm_livekit_agent)
+    return result
 
 
 @router.post("/login")
 def login(
     body: LoginRequest,
+    background_tasks: BackgroundTasks,
     _: None = Depends(limit_ip("auth_login", 10, 60.0)),
 ) -> dict[str, Any]:
     try:
-        return login_email(body.email, body.password)
+        result = login_email(body.email, body.password)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    background_tasks.add_task(warm_livekit_agent)
+    return result
 
 
 @router.post("/refresh")

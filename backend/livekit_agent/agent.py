@@ -1,6 +1,7 @@
 import time
 import uuid
 import asyncio
+import json
 from collections.abc import Callable
 
 from dotenv import load_dotenv
@@ -330,6 +331,26 @@ server = AgentServer()
 async def healia_session(ctx: JobContext) -> None:
     session_id = f"sess_{uuid.uuid4().hex[:8]}"
     room_name = ctx.room.name
+
+    # Login/signup warm: wake replica, then exit (no consultation).
+    raw_meta = (getattr(ctx.job, "metadata", None) or "").strip()
+    purpose = ""
+    if raw_meta:
+        try:
+            purpose = str((json.loads(raw_meta) or {}).get("purpose") or "").strip()
+        except Exception:
+            purpose = raw_meta
+    if purpose == "prewarm":
+        log_path = start_session_log(session_id, room=room_name, model=config.MODEL)
+        log_event(
+            "VOICE",
+            "prewarm",
+            session_id=session_id,
+            detail=f"room={room_name} log={log_path.name}",
+        )
+        await ctx.connect()
+        return
+
     log_path = start_session_log(session_id, room=room_name, model=config.MODEL)
 
     log_event(
@@ -354,6 +375,15 @@ async def healia_session(ctx: JobContext) -> None:
     coordinator = TurnCoordinator(session_id) if config.SUPERVISOR_ENABLED else None
 
     async def on_final_turn(turn_id: str, text: str) -> None:
+        if consult_state.phase == "ended":
+            log_event(
+                "SUP",
+                "turn_ignored",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail="phase=ended",
+            )
+            return
         if coordinator is None:
             await handle_patient_turn(
                 session_id,

@@ -28,6 +28,69 @@ def _uses_controlled_speech() -> bool:
     return config.SUPERVISOR_ENABLED and config.SUPERVISOR_MODE == "controlled"
 
 
+async def _end_on_llm_failure(
+    *,
+    session_id: str,
+    turn_id: str,
+    state: ConsultationState,
+    session: AgentSession | None,
+    pipeline_started: float,
+    reason: str,
+    phase: str = "supervisor",
+) -> None:
+    """Speak once, mark consultation ended, notify UI — do not invite another turn."""
+    state.phase = "ended"
+    spoken = config.LLM_FATAL_UTTERANCE
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase=phase,
+        status="error",
+        message=f"LLM failure: {reason}",
+        data={"error": reason, "fatal": True},
+        elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+    )
+    log_event(
+        "SUP",
+        "llm_fatal",
+        session_id=session_id,
+        turn_id=turn_id,
+        detail=f"reason={reason}",
+    )
+    if _uses_controlled_speech() and session is not None:
+        try:
+            await session.generate_reply(
+                instructions=f"Say exactly: {spoken}",
+                tool_choice="none",
+            )
+        except Exception as exc:
+            log_event(
+                "VOICE",
+                "speech_error",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail=f"fatal_utterance_failed {exc}",
+            )
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="session",
+        status="error",
+        message="Consultation ended due to a technical problem",
+        data={"fatal": True, "reason": reason, "user_message": spoken},
+        elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+    )
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="turn",
+        status="error",
+        message="Consultation pipeline ended after LLM failure",
+        data={"fatal": True, "reason": reason},
+        elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+    )
+
+
 async def handle_patient_turn(
     session_id: str,
     turn_id: str,
@@ -38,6 +101,15 @@ async def handle_patient_turn(
 ) -> None:
     """Part 3: supervisor decides; controlled mode speaks approved content only."""
     if not config.SUPERVISOR_ENABLED:
+        return
+    if state.phase == "ended":
+        log_event(
+            "SUP",
+            "turn_ignored",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail="phase=ended",
+        )
         return
 
     pipeline_started = time.monotonic()
@@ -128,40 +200,17 @@ async def handle_patient_turn(
                 turn_id=turn_id,
                 assessment_evidence=assessment_evidence,
             ),
-            timeout=12.0,
+            timeout=config.SUPERVISOR_TIMEOUT_SEC,
         )
     except asyncio.TimeoutError:
-        emit_pipeline_event(
+        await _end_on_llm_failure(
             session_id=session_id,
             turn_id=turn_id,
+            state=state,
+            session=session,
+            pipeline_started=pipeline_started,
+            reason="supervisor_timeout",
             phase="supervisor",
-            status="error",
-            message="Supervisor timed out",
-            data={"error": "timeout"},
-            elapsed_ms=int((time.monotonic() - started) * 1000),
-        )
-        log_event(
-            "SUP",
-            "supervisor_timeout",
-            session_id=session_id,
-            turn_id=turn_id,
-            detail=f"+{int((time.monotonic() - started) * 1000)}ms",
-        )
-        if _uses_controlled_speech() and session is not None:
-            await session.generate_reply(
-                instructions=(
-                    "Say exactly: Sorry, that took too long. "
-                    "Could you please say that again?"
-                ),
-                tool_choice="none",
-            )
-        emit_pipeline_event(
-            session_id=session_id,
-            turn_id=turn_id,
-            phase="turn",
-            status="error",
-            message="Consultation pipeline failed at supervisor timeout",
-            elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
         )
         return
     except asyncio.CancelledError:
@@ -175,15 +224,6 @@ async def handle_patient_turn(
         )
         raise
     except Exception as exc:
-        emit_pipeline_event(
-            session_id=session_id,
-            turn_id=turn_id,
-            phase="supervisor",
-            status="error",
-            message="Supervisor failed",
-            data={"error": str(exc)},
-            elapsed_ms=int((time.monotonic() - started) * 1000),
-        )
         log_event(
             "SUP",
             "supervisor_error",
@@ -191,38 +231,14 @@ async def handle_patient_turn(
             turn_id=turn_id,
             detail=f"+{int((time.monotonic() - started) * 1000)}ms {exc}",
         )
-        log_event(
-            "CTRL",
-            "decision_validated",
+        await _end_on_llm_failure(
             session_id=session_id,
             turn_id=turn_id,
-            detail=(
-                f"+{int((time.monotonic() - started) * 1000)}ms "
-                f"ok=false error=supervisor_failed"
-            ),
-        )
-        if _uses_controlled_speech() and session is not None:
-            log_event(
-                "VOICE",
-                "speech_requested",
-                session_id=session_id,
-                turn_id=turn_id,
-                detail="fallback=supervisor_error",
-            )
-            await session.generate_reply(
-                instructions=(
-                    "Say exactly: Sorry, I had trouble processing that. "
-                    "Could you please repeat?"
-                ),
-                tool_choice="none",
-            )
-        emit_pipeline_event(
-            session_id=session_id,
-            turn_id=turn_id,
-            phase="turn",
-            status="error",
-            message="Consultation pipeline failed at supervisor",
-            elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+            state=state,
+            session=session,
+            pipeline_started=pipeline_started,
+            reason=f"supervisor_error:{exc}",
+            phase="supervisor",
         )
         return
 
@@ -365,6 +381,20 @@ async def handle_patient_turn(
                 turn_id=turn_id,
             )
             if guidance_result is not None:
+                if guidance_result.get("error") and not (
+                    guidance_result.get("spoken_answer")
+                    or (guidance_result.get("guidance") or {}).get("spoken_answer")
+                ):
+                    await _end_on_llm_failure(
+                        session_id=session_id,
+                        turn_id=turn_id,
+                        state=state,
+                        session=session,
+                        pipeline_started=pipeline_started,
+                        reason=f"guidance_error:{guidance_result.get('error')}",
+                        phase="guidance",
+                    )
+                    return
                 log_note(
                     session_id,
                     "\n".join(

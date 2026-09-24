@@ -181,7 +181,13 @@ function LiveKitBridge({ room }: { room: Room }) {
     };
   }, []);
 
-  const handlePipelineEvent = (event: PipelineEvent) => {
+    const handlePipelineEvent = (event: PipelineEvent) => {
+    // Fatal LLM / session failure — show error UI; do not keep the consult looping.
+    if (event.phase === "session" && event.status === "error") {
+      failOnce(event.message || "service error", "service");
+      return;
+    }
+
     const patientText = event.data?.patient_text;
     if (
       event.phase === "turn" &&

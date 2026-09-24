@@ -132,11 +132,14 @@ async def run_knowledge_guidance(
     )
 
     try:
-        guidance = await generate_guidance(
-            final_query=final_query,
-            chief_complaint=case_package.get("chief_complaint"),
-            facts=case_package.get("facts") or {},
-            chunks=chunks,
+        guidance = await asyncio.wait_for(
+            generate_guidance(
+                final_query=final_query,
+                chief_complaint=case_package.get("chief_complaint"),
+                facts=case_package.get("facts") or {},
+                chunks=chunks,
+            ),
+            timeout=config.GUIDANCE_TIMEOUT_SEC,
         )
     except Exception as exc:
         emit_pipeline_event(

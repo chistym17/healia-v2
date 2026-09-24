@@ -6,16 +6,21 @@ python-dotenv
 requests
 email-validator
 
+# Auth / DB
 psycopg[binary]
 supabase
 
+# LiveKit agent + speech
 livekit-agents[google]~=1.6
 livekit-api
 livekit-plugins-assemblyai~=1.6
 google-genai
+groq
 
+# Vectors (Qdrant Cloud)
 qdrant-client
 numpy
 
+# Local VECTOR_BACKEND only (FAISS + bm25.pkl). Omit on Qdrant-only deploys.
 faiss-cpu
 rank_bm25
