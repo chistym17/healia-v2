@@ -20,3 +20,4 @@ psycopg[binary]
 supabase
 email-validator
 PyJWT
+qdrant-client

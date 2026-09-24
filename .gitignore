@@ -1,3 +1,13 @@
+# Large data / indexes — keep code, ignore artifacts
+backend/Data/
+backend/medical_rag/checkpoints/
+backend/medical_rag/store/
+backend/medical_rag/bm25/
+backend/medical_rag/assessment/store/
+
+# Local model caches (TEI / Hugging Face downloads)
+backend/models/
+models/
 venv
 whisper/
 __pycache__
@@ -13,17 +23,3 @@ update-plan.txt
 overview.md
 logs/
 rag_plan.txt
-
-# Large data / indexes — keep code, ignore artifacts
-backend/Data/
-backend/medical_rag/checkpoints/
-backend/medical_rag/store/
-backend/medical_rag/bm25/
-backend/medical_rag/assessment/store/
-
-# Local model caches (TEI / Hugging Face downloads)
-backend/models/
-models/
-
-# Old symptom FAISS (already small; leave tracked if present)
-# vectorstore/   # currently tracked on purpose — do not ignore unless you untrack
