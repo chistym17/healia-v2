@@ -8,7 +8,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import faiss
 import numpy as np
 from dotenv import load_dotenv
 
@@ -79,7 +78,9 @@ def _clear_index_cache() -> None:
 
 
 @lru_cache(maxsize=1)
-def _load_index() -> tuple[faiss.Index, list[dict[str, Any]], dict]:
+def _load_index():
+    import faiss
+
     index_path = STORE_DIR / "index.faiss"
     metadata_path = STORE_DIR / "metadata.jsonl"
     if not index_path.is_file() or not metadata_path.is_file():

@@ -1,0 +1,9 @@
+# Slim deps for the LiveKit worker image (no FastAPI / FAISS / DB).
+python-dotenv
+requests
+numpy
+qdrant-client
+google-genai
+livekit-agents[google]~=1.6
+livekit-api
+livekit-plugins-assemblyai~=1.6
