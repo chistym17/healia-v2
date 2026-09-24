@@ -80,7 +80,9 @@ async def handle_patient_turn(
             turn_id=turn_id,
             detail="source=medquad_assessment",
         )
-        assessment_evidence = assessment_search(
+        # Sync Qdrant/HF must not block the LiveKit audio loop.
+        assessment_evidence = await asyncio.to_thread(
+            assessment_search,
             chief_complaint=snap.get("chief_complaint"),
             known_facts=snap.get("facts") or {},
             already_asked=snap.get("asked_topics") or [],
@@ -118,13 +120,50 @@ async def handle_patient_turn(
     )
 
     try:
-        decision = await run_supervisor(
-            patient_turn=patient_text,
-            state=snap,
+        decision = await asyncio.wait_for(
+            run_supervisor(
+                patient_turn=patient_text,
+                state=snap,
+                session_id=session_id,
+                turn_id=turn_id,
+                assessment_evidence=assessment_evidence,
+            ),
+            timeout=12.0,
+        )
+    except asyncio.TimeoutError:
+        emit_pipeline_event(
             session_id=session_id,
             turn_id=turn_id,
-            assessment_evidence=assessment_evidence,
+            phase="supervisor",
+            status="error",
+            message="Supervisor timed out",
+            data={"error": "timeout"},
+            elapsed_ms=int((time.monotonic() - started) * 1000),
         )
+        log_event(
+            "SUP",
+            "supervisor_timeout",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail=f"+{int((time.monotonic() - started) * 1000)}ms",
+        )
+        if _uses_controlled_speech() and session is not None:
+            await session.generate_reply(
+                instructions=(
+                    "Say exactly: Sorry, that took too long. "
+                    "Could you please say that again?"
+                ),
+                tool_choice="none",
+            )
+        emit_pipeline_event(
+            session_id=session_id,
+            turn_id=turn_id,
+            phase="turn",
+            status="error",
+            message="Consultation pipeline failed at supervisor timeout",
+            elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+        )
+        return
     except asyncio.CancelledError:
         emit_pipeline_event(
             session_id=session_id,

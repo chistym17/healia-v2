@@ -229,7 +229,9 @@ def _attach_session_logs(
             active_session = get_session() if get_session else session
             if ev.new_state != "speaking":
                 return
-            if agent_state == "speaking" or coordinator.has_active():
+            # Only barge-in when the agent is talking. Do not cancel
+            # in-flight RAG/supervisor on brief user speech noise.
+            if agent_state == "speaking":
                 await coordinator.cancel_active(
                     active_session,
                     reason="user_interrupted",

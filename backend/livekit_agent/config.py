@@ -70,7 +70,7 @@ SUPERVISOR_ENABLED = True
 # log_only  = step 1: supervisor logs decisions; Gemini still free-chats
 # controlled = step 2: Gemini speaks only supervisor spoken_utterance
 SUPERVISOR_MODE = "controlled"
-SUPERVISOR_MODEL = "gemini-3.5-flash-lite"  # A/B vs 3.6-flash: TTFB was 5–20s on 3.6
+SUPERVISOR_MODEL = "gemini-2.5-flash-lite"  # 3.5-flash-lite ~130s in smoke; 2.5 ~1–2s
 SUPERVISOR_TEMPERATURE = 0.2
 SUPERVISOR_MAX_FOLLOWUPS = 8
 
