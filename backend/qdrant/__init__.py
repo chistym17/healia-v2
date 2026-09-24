@@ -6,8 +6,10 @@ Env (backend/.env):
   QDRANT_API_KEY
   QDRANT_TIMEOUT_SEC  (optional, default 30)
 
-Smoke test:
-  cd backend && PYTHONPATH=venv/lib/python3.12/site-packages:$PWD python -m qdrant
+Commands (from backend/):
+  python -m qdrant
+  python -m qdrant.upload assessment --recreate
+  python -m qdrant.upload knowledge --recreate
 """
 
 from qdrant.client import get_client, ping, reset_client
