@@ -9,24 +9,54 @@ from fastapi import APIRouter, Depends, HTTPException
 from google.protobuf.json_format import ParseDict
 from livekit import api
 from livekit.protocol.room import RoomConfiguration
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from auth.supabase_auth import get_current_user
 from security.rate_limit import limit_user
+
+# Must match livekit_agent.config.AGENT_NAME
+DEFAULT_AGENT_NAME = "healia"
 
 router = APIRouter(prefix="/api/livekit", tags=["LiveKit"])
 
 
 class TokenRequest(BaseModel):
-    room_name: str | None = None
-    participant_identity: str | None = None
-    participant_name: str = Field(default="Patient", max_length=100)
-    room_config: dict[str, Any] | None = None
+    """Accepts LiveKit TokenSource camelCase and snake_case bodies."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    room_name: str | None = Field(default=None, alias="roomName")
+    participant_identity: str | None = Field(default=None, alias="participantIdentity")
+    participant_name: str = Field(
+        default="Patient", max_length=100, alias="participantName"
+    )
+    room_config: dict[str, Any] | None = Field(default=None, alias="roomConfig")
 
 
 class TokenResponse(BaseModel):
-    server_url: str
-    participant_token: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    server_url: str = Field(alias="serverUrl")
+    participant_token: str = Field(alias="participantToken")
+
+
+def _ensure_agent_dispatch(room_config: dict[str, Any] | None) -> dict[str, Any]:
+    """Named worker (agent_name=healia) only joins when explicitly dispatched."""
+    cfg: dict[str, Any] = dict(room_config or {})
+    agents = cfg.get("agents") or cfg.get("Agents") or []
+    if not isinstance(agents, list):
+        agents = []
+    agents = list(agents)
+    if not agents:
+        agents = [{"agent_name": DEFAULT_AGENT_NAME}]
+    else:
+        # Normalize first agent name if missing
+        first = dict(agents[0] or {})
+        if not (first.get("agent_name") or first.get("agentName")):
+            first["agent_name"] = DEFAULT_AGENT_NAME
+        agents[0] = first
+    cfg["agents"] = agents
+    return cfg
 
 
 @router.post("/token", response_model=TokenResponse, status_code=201)
@@ -72,9 +102,8 @@ async def create_livekit_token(
         )
     )
 
-    if request.room_config:
-        room_config = ParseDict(request.room_config, RoomConfiguration())
-        token = token.with_room_config(room_config)
+    room_config = _ensure_agent_dispatch(request.room_config)
+    token = token.with_room_config(ParseDict(room_config, RoomConfiguration()))
 
     return TokenResponse(
         server_url=livekit_url,
