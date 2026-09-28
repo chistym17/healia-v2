@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { ConsultationError } from "@/v2/lib/consultationErrors";
+import { hasEnoughPatientInfo } from "@/v2/lib/patientInfo";
 import { LIVE_PROCESSING_STEPS } from "@/v2/lib/pipeline";
 import {
   completeSession,
@@ -25,6 +26,8 @@ import type {
   TranscriptMessage,
   VoiceState,
 } from "@/v2/types/consultation";
+
+type EndReason = "insufficient" | "request_guidance";
 
 type ConsultationContextValue = {
   voiceState: VoiceState;
@@ -51,6 +54,7 @@ type ConsultationContextValue = {
   setGuidanceResult: (result: GuidanceResult) => void;
   goToProcessing: () => void;
   goToResults: () => void;
+  goToInsufficient: () => void;
   endConsultation: () => void;
   endLiveSession: () => void;
   stopAgent: () => void;
@@ -61,6 +65,9 @@ type ConsultationContextValue = {
   sendTextMessage: (text: string) => Promise<void>;
   registerTextSender: (sender: ((text: string) => Promise<void>) | null) => void;
   registerMicToggle: (toggle: ((enabled: boolean) => Promise<void>) | null) => void;
+  registerEndNotifier: (
+    notifier: ((reason: EndReason) => Promise<void>) | null,
+  ) => void;
   onLiveKitRoomReady: (roomName: string) => Promise<void>;
   onProcessingPersist: () => Promise<void>;
   onCompletePersist: (guidance: GuidanceResult) => Promise<void>;
@@ -76,7 +83,7 @@ function createId(prefix: string) {
 
 export function ConsultationProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const [voiceState, setVoiceState] = useState<VoiceState>("ready");
+  const [voiceState, setVoiceState] = useState<VoiceState>("connecting");
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
   const [guidance, setGuidance] = useState<GuidanceResult | null>(null);
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -94,7 +101,12 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const micToggleRef = useRef<((enabled: boolean) => Promise<void>) | null>(
     null,
   );
+  const endNotifierRef = useRef<((reason: EndReason) => Promise<void>) | null>(
+    null,
+  );
   const seenTranscriptKeys = useRef(new Set<string>());
+  const transcriptRef = useRef<TranscriptMessage[]>([]);
+  transcriptRef.current = transcript;
 
   const isListening = voiceState === "listening" && micEnabled;
   const isProcessingTurn =
@@ -124,7 +136,8 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     seenTranscriptKeys.current.clear();
     textSenderRef.current = null;
     micToggleRef.current = null;
-    setVoiceState("ready");
+    endNotifierRef.current = null;
+    setVoiceState("connecting");
     setTranscript([]);
     setGuidance(null);
     setSessionStarted(false);
@@ -147,7 +160,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     setActiveStepId(null);
     setGuidanceReady(false);
     setMicEnabled(true);
-    setVoiceState("ready");
+    setVoiceState("connecting");
     setSessionStarted(true);
     setLiveSessionKey((k) => k + 1);
     setLiveSessionActive(true);
@@ -157,7 +170,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const endLiveSession = useCallback(() => {
     setLiveSessionActive(false);
     setSessionStarted(false);
-    setVoiceState("ready");
+    setVoiceState("connecting");
   }, []);
 
   const failConsultation = useCallback(
@@ -174,7 +187,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const stopAgent = useCallback(() => {
     setLiveSessionActive(false);
     setSessionStarted(false);
-    setVoiceState("ready");
+    setVoiceState("connecting");
     setConnectionError(null);
     setMicEnabled(true);
   }, []);
@@ -211,15 +224,12 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     navigate("/consultation/results");
   }, [navigate]);
 
-  const endConsultation = useCallback(() => {
-    // Manual end — if guidance already ready, go to results; else processing.
-    if (guidanceReady) {
-      navigate("/consultation/results");
-      return;
-    }
-    markProcessingStep("symptoms", "active");
-    navigate("/consultation/processing");
-  }, [guidanceReady, markProcessingStep, navigate]);
+  const goToInsufficient = useCallback(() => {
+    setMicEnabled(false);
+    setLiveSessionActive(false);
+    setSessionStarted(false);
+    navigate("/consultation/insufficient");
+  }, [navigate]);
 
   const registerTextSender = useCallback(
     (sender: ((text: string) => Promise<void>) | null) => {
@@ -231,6 +241,13 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
   const registerMicToggle = useCallback(
     (toggle: ((enabled: boolean) => Promise<void>) | null) => {
       micToggleRef.current = toggle;
+    },
+    [],
+  );
+
+  const registerEndNotifier = useCallback(
+    (notifier: ((reason: EndReason) => Promise<void>) | null) => {
+      endNotifierRef.current = notifier;
     },
     [],
   );
@@ -301,6 +318,39 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
     [transcript],
   );
 
+  const endConsultation = useCallback(() => {
+    if (guidanceReady) {
+      navigate("/consultation/results");
+      return;
+    }
+
+    const enough = hasEnoughPatientInfo(transcriptRef.current);
+    const reason: EndReason = enough ? "request_guidance" : "insufficient";
+
+    const finish = () => {
+      if (!enough) {
+        goToInsufficient();
+        return;
+      }
+      markProcessingStep("symptoms", "active");
+      void onProcessingPersist();
+      navigate("/consultation/processing");
+    };
+
+    const notify = endNotifierRef.current?.(reason);
+    if (notify) {
+      void notify.finally(finish);
+    } else {
+      finish();
+    }
+  }, [
+    guidanceReady,
+    goToInsufficient,
+    markProcessingStep,
+    navigate,
+    onProcessingPersist,
+  ]);
+
   const value = useMemo<ConsultationContextValue>(
     () => ({
       voiceState,
@@ -327,6 +377,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       setGuidanceResult,
       goToProcessing,
       goToResults,
+      goToInsufficient,
       endConsultation,
       endLiveSession,
       stopAgent,
@@ -336,6 +387,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       registerTextSender,
       registerMicToggle,
+      registerEndNotifier,
       onLiveKitRoomReady,
       onProcessingPersist,
       onCompletePersist,
@@ -362,6 +414,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       setGuidanceResult,
       goToProcessing,
       goToResults,
+      goToInsufficient,
       endConsultation,
       endLiveSession,
       stopAgent,
@@ -370,6 +423,7 @@ export function ConsultationProvider({ children }: { children: ReactNode }) {
       sendTextMessage,
       registerTextSender,
       registerMicToggle,
+      registerEndNotifier,
       onLiveKitRoomReady,
       onProcessingPersist,
       onCompletePersist,

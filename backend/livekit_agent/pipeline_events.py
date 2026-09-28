@@ -26,6 +26,7 @@ if not _log.handlers:
     _log.propagate = False
 
 PIPELINE_TOPIC = "healia.pipeline"
+CONTROL_TOPIC = "healia.control"
 MAX_HISTORY = 200
 
 Publisher = Callable[[dict[str, Any]], Awaitable[None] | None]

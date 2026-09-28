@@ -20,9 +20,10 @@ except ImportError:  # pragma: no cover
 from livekit.plugins import assemblyai, google
 
 from livekit_agent import config
-from livekit_agent.consultation import handle_patient_turn
+from livekit_agent.consultation import handle_patient_turn, handle_user_ended
 from livekit_agent.events import log_event, start_session_log
 from livekit_agent.pipeline_events import (
+    CONTROL_TOPIC,
     emit_pipeline_event,
     register_pipeline_publisher,
     unregister_pipeline_publisher,
@@ -456,6 +457,45 @@ async def healia_session(ctx: JobContext) -> None:
         session_id=session_id,
         detail=f"reply_path={reply_path}",
     )
+
+    @ctx.room.on("data_received")
+    def _on_control_data(data) -> None:  # noqa: ANN001 — LiveKit DataPacket
+        topic = getattr(data, "topic", None) or ""
+        if topic != CONTROL_TOPIC:
+            return
+        try:
+            raw = data.data if hasattr(data, "data") else data
+            if isinstance(raw, memoryview):
+                raw = raw.tobytes()
+            payload = json.loads(raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw)
+        except Exception as exc:
+            log_event(
+                "CTRL",
+                "control_parse_error",
+                session_id=session_id,
+                detail=str(exc),
+            )
+            return
+        if not isinstance(payload, dict) or payload.get("type") != "user_ended":
+            return
+        reason = str(payload.get("reason") or "insufficient")
+        log_event(
+            "CTRL",
+            "user_ended",
+            session_id=session_id,
+            detail=f"reason={reason}",
+        )
+
+        async def _handle() -> None:
+            await handle_user_ended(
+                session_id=session_id,
+                state=consult_state,
+                session=session_holder["session"],
+                reason=reason,
+                coordinator=coordinator,
+            )
+
+        asyncio.create_task(_handle())
 
     # Warm supervisor in parallel with greeting (cuts turn-1 model cold start).
     warmup_task: asyncio.Task | None = None

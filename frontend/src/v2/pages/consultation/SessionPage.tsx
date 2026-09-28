@@ -57,7 +57,10 @@ export default function SessionPage() {
               micEnabled={micEnabled}
               liveAudio={liveSessionActive}
             />
-            <ConsultationTranscript messages={transcript} />
+            <ConsultationTranscript
+              messages={transcript}
+              waitingForAgent={voiceState === "connecting"}
+            />
             <div className="mt-auto">
               {liveSessionActive ? (
                 <VoiceControls

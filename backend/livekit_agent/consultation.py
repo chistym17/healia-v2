@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 from livekit_agent import config
 from livekit_agent.assessment_rag import search as assessment_search
-from livekit_agent.case_package import build_case_package
+from livekit_agent.case_package import (
+    build_case_package,
+    draft_final_query_from_state,
+    has_patient_substance,
+)
 from livekit_agent.controller import validate_and_apply
 from livekit_agent.events import log_event, log_note
 from livekit_agent.guidance_pipeline import run_knowledge_guidance
@@ -87,6 +91,212 @@ async def _end_on_llm_failure(
         status="error",
         message="Consultation pipeline ended after LLM failure",
         data={"fatal": True, "reason": reason},
+        elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
+    )
+
+
+def _emit_insufficient(
+    *,
+    session_id: str,
+    turn_id: str,
+    state: ConsultationState,
+    reason: str,
+    pipeline_started: float | None = None,
+) -> None:
+    """Tell the UI there isn't enough patient info — do not enter guidance."""
+    state.phase = "ended"
+    elapsed = (
+        int((time.monotonic() - pipeline_started) * 1000)
+        if pipeline_started is not None
+        else None
+    )
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="session",
+        status="insufficient",
+        message="Not enough information to prepare guidance",
+        data={"reason": reason, "has_patient_substance": has_patient_substance(state)},
+        elapsed_ms=elapsed,
+    )
+    log_event(
+        "CTRL",
+        "insufficient_info",
+        session_id=session_id,
+        turn_id=turn_id,
+        detail=f"reason={reason}",
+    )
+
+
+async def handle_user_ended(
+    *,
+    session_id: str,
+    state: ConsultationState,
+    session: AgentSession | None,
+    reason: str,
+    coordinator: TurnCoordinator | None = None,
+) -> None:
+    """
+    Client pressed End.
+    - insufficient / no substance → notify UI and stop
+    - request_guidance with substance → force case package + guidance path
+    """
+    if state.phase == "ended":
+        return
+
+    turn_id = f"user-end-{int(time.time())}"
+    pipeline_started = time.monotonic()
+    want_guidance = reason == "request_guidance"
+
+    if not want_guidance or not has_patient_substance(state):
+        _emit_insufficient(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            reason=reason if not has_patient_substance(state) else "user_ended_early",
+            pipeline_started=pipeline_started,
+        )
+        return
+
+    # Force a final query from what we already have.
+    draft = draft_final_query_from_state(state)
+    if not draft:
+        _emit_insufficient(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            reason="empty_draft",
+            pipeline_started=pipeline_started,
+        )
+        return
+
+    state.final_query_draft = draft
+    state.phase = "ready"
+
+    async def _finalize() -> None:
+        await _run_final_guidance(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            session=session,
+            pipeline_started=pipeline_started,
+        )
+
+    if coordinator is not None:
+        await coordinator.run_turn(turn_id, session, _finalize)
+    else:
+        await _finalize()
+
+
+async def _run_final_guidance(
+    *,
+    session_id: str,
+    turn_id: str,
+    state: ConsultationState,
+    session: AgentSession | None,
+    pipeline_started: float,
+) -> None:
+    """Build case package and run knowledge guidance (shared by supervisor + user end)."""
+    package = build_case_package(state)
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="case_package",
+        status="completed",
+        message="Final case package ready for knowledge retrieval",
+        data={
+            "ready_for_retrieval": package.get("ready_for_retrieval"),
+            "has_patient_substance": package.get("has_patient_substance"),
+            "final_query_chars": len(package.get("final_query") or ""),
+            "phase": package.get("phase"),
+        },
+    )
+
+    if not package.get("ready_for_retrieval"):
+        _emit_insufficient(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            reason="case_package_not_ready",
+            pipeline_started=pipeline_started,
+        )
+        return
+
+    guidance_result = await run_knowledge_guidance(
+        package,
+        session_id=session_id,
+        turn_id=turn_id,
+    )
+    if guidance_result is None:
+        _emit_insufficient(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            reason="guidance_skipped",
+            pipeline_started=pipeline_started,
+        )
+        return
+
+    if guidance_result.get("error") and not (
+        guidance_result.get("spoken_answer")
+        or (guidance_result.get("guidance") or {}).get("spoken_answer")
+    ):
+        await _end_on_llm_failure(
+            session_id=session_id,
+            turn_id=turn_id,
+            state=state,
+            session=session,
+            pipeline_started=pipeline_started,
+            reason=f"guidance_error:{guidance_result.get('error')}",
+            phase="guidance",
+        )
+        return
+
+    if session is None:
+        return
+
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="speech",
+        status="started",
+        message="Preparing voice response",
+        data={"source": "knowledge_guidance"},
+    )
+    speech_started = time.monotonic()
+    try:
+        guidance_payload = guidance_result.get("guidance") or guidance_result
+        if guidance_payload.get("spoken_answer"):
+            await speak_guidance(session, guidance_payload)
+    except Exception as exc:
+        emit_pipeline_event(
+            session_id=session_id,
+            turn_id=turn_id,
+            phase="speech",
+            status="error",
+            message="Voice response failed",
+            data={"error": str(exc)},
+        )
+        return
+
+    speech_ms = int((time.monotonic() - speech_started) * 1000)
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="speech",
+        status="completed",
+        message="Voice response delivered",
+        data={"source": "knowledge_guidance"},
+        elapsed_ms=speech_ms,
+    )
+    state.phase = "ended"
+    emit_pipeline_event(
+        session_id=session_id,
+        turn_id=turn_id,
+        phase="turn",
+        status="completed",
+        message="Consultation pipeline finished",
+        data={"action": "build_final_query", "speech_source": "knowledge_guidance"},
         elapsed_ms=int((time.monotonic() - pipeline_started) * 1000),
     )
 
@@ -351,6 +561,7 @@ async def handle_patient_turn(
             message="Final case package ready for knowledge retrieval",
             data={
                 "ready_for_retrieval": package.get("ready_for_retrieval"),
+                "has_patient_substance": package.get("has_patient_substance"),
                 "final_query_chars": len(package.get("final_query") or ""),
                 "phase": package.get("phase"),
             },
@@ -374,36 +585,45 @@ async def handle_patient_turn(
                 ]
             ),
         )
-        if package.get("ready_for_retrieval"):
-            guidance_result = await run_knowledge_guidance(
-                package,
+        if not package.get("ready_for_retrieval") or not has_patient_substance(state):
+            _emit_insufficient(
                 session_id=session_id,
                 turn_id=turn_id,
+                state=state,
+                reason="build_final_without_substance",
+                pipeline_started=pipeline_started,
             )
-            if guidance_result is not None:
-                if guidance_result.get("error") and not (
-                    guidance_result.get("spoken_answer")
-                    or (guidance_result.get("guidance") or {}).get("spoken_answer")
-                ):
-                    await _end_on_llm_failure(
-                        session_id=session_id,
-                        turn_id=turn_id,
-                        state=state,
-                        session=session,
-                        pipeline_started=pipeline_started,
-                        reason=f"guidance_error:{guidance_result.get('error')}",
-                        phase="guidance",
-                    )
-                    return
-                log_note(
-                    session_id,
-                    "\n".join(
-                        [
-                            f"KNOWLEDGE GUIDANCE ({turn_id}):",
-                            json.dumps(guidance_result, ensure_ascii=False, indent=2),
-                        ]
-                    ),
+            return
+
+        guidance_result = await run_knowledge_guidance(
+            package,
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        if guidance_result is not None:
+            if guidance_result.get("error") and not (
+                guidance_result.get("spoken_answer")
+                or (guidance_result.get("guidance") or {}).get("spoken_answer")
+            ):
+                await _end_on_llm_failure(
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    state=state,
+                    session=session,
+                    pipeline_started=pipeline_started,
+                    reason=f"guidance_error:{guidance_result.get('error')}",
+                    phase="guidance",
                 )
+                return
+            log_note(
+                session_id,
+                "\n".join(
+                    [
+                        f"KNOWLEDGE GUIDANCE ({turn_id}):",
+                        json.dumps(guidance_result, ensure_ascii=False, indent=2),
+                    ]
+                ),
+            )
 
     if config.SUPERVISOR_MODE == "log_only":
         log_event(

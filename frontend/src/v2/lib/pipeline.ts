@@ -42,8 +42,26 @@ export function isSpeechCompleteEvent(event: PipelineEvent): boolean {
   return event.phase === "speech" && event.status === "completed";
 }
 
+/** Agent / supervisor decided there isn't enough patient info for guidance. */
+export function isInsufficientInfoEvent(event: PipelineEvent): boolean {
+  if (event.phase === "session" && event.status === "insufficient") return true;
+  if (
+    event.phase === "case_package" &&
+    event.status === "completed" &&
+    event.data?.ready_for_retrieval === false
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function isProcessingStartEvent(event: PipelineEvent): boolean {
-  if (event.phase === "case_package" && event.status === "completed") return true;
+  if (isInsufficientInfoEvent(event)) return false;
+  if (event.phase === "case_package" && event.status === "completed") {
+    // Only enter processing when retrieval can actually run.
+    if (event.data?.ready_for_retrieval === false) return false;
+    return true;
+  }
   if (event.phase === "knowledge_rag" && event.status === "started") return true;
   if (
     event.phase === "supervisor" &&

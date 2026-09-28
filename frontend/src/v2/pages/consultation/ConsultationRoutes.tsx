@@ -5,6 +5,7 @@ import StartConsultationPage from "@/v2/pages/consultation/StartConsultationPage
 import SessionPage from "@/v2/pages/consultation/SessionPage";
 import ProcessingPage from "@/v2/pages/consultation/ProcessingPage";
 import ResultsPage from "@/v2/pages/consultation/ResultsPage";
+import InsufficientInfoPage from "@/v2/pages/consultation/InsufficientInfoPage";
 
 export default function ConsultationRoutes() {
   return (
@@ -14,6 +15,7 @@ export default function ConsultationRoutes() {
           <Route index element={<StartConsultationPage />} />
           <Route path="session" element={<SessionPage />} />
           <Route path="processing" element={<ProcessingPage />} />
+          <Route path="insufficient" element={<InsufficientInfoPage />} />
           <Route path="results" element={<ResultsPage />} />
         </Routes>
       </LiveKitConsultationShell>

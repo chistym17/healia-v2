@@ -3,10 +3,13 @@ import type { TranscriptMessage } from "@/v2/types/consultation";
 
 type ConsultationTranscriptProps = {
   messages: TranscriptMessage[];
+  /** When true, empty state explains wait-for-agent instead of generic copy. */
+  waitingForAgent?: boolean;
 };
 
 export function ConsultationTranscript({
   messages,
+  waitingForAgent = false,
 }: ConsultationTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -20,7 +23,9 @@ export function ConsultationTranscript({
     return (
       <div className="mx-auto w-full max-w-consultation flex-1 px-5 py-4 md:px-0">
         <p className="text-center text-sm text-healia-text-muted">
-          Your conversation will appear here.
+          {waitingForAgent
+            ? "Healia will greet you shortly. Your conversation will appear here."
+            : "Your conversation will appear here."}
         </p>
       </div>
     );

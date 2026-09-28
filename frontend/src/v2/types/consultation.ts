@@ -1,4 +1,5 @@
 export type VoiceState =
+  | "connecting"
   | "ready"
   | "listening"
   | "thinking"

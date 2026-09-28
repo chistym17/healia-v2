@@ -13,6 +13,7 @@ import { Room, RoomEvent, TokenSource } from "livekit-client";
 import { useConsultation } from "@/v2/context/ConsultationContext";
 import {
   HEALIA_AGENT_NAME,
+  CONTROL_TOPIC,
   LIVEKIT_TOKEN_URL,
   PIPELINE_TOPIC,
 } from "@/v2/lib/api";
@@ -24,13 +25,17 @@ import {
 import { mapBackendGuidanceToResult } from "@/v2/lib/guidanceMapper";
 import {
   isGuidanceReadyEvent,
+  isInsufficientInfoEvent,
   isProcessingStartEvent,
   isSpeechCompleteEvent,
   parsePipelinePayload,
   stepIdForPipelinePhase,
   type PipelineEvent,
 } from "@/v2/lib/pipeline";
-import { mapAgentStateToVoiceState } from "@/v2/lib/voiceState";
+import {
+  isAgentTurnState,
+  mapAgentStateToVoiceState,
+} from "@/v2/lib/voiceState";
 import type { GuidanceResult } from "@/v2/types/consultation";
 
 /** Max wait after guidance before leaving even if speech.completed never arrives. */
@@ -54,8 +59,10 @@ function LiveKitBridge({ room }: { room: Room }) {
     setGuidanceResult,
     goToProcessing,
     goToResults,
+    goToInsufficient,
     registerTextSender,
     registerMicToggle,
+    registerEndNotifier,
     setMicEnabled,
     micEnabled,
     onProcessingPersist,
@@ -69,10 +76,23 @@ function LiveKitBridge({ room }: { room: Room }) {
   const navigatedToProcessing = useRef(false);
   const guidanceStored = useRef(false);
   const navigatedToResults = useRef(false);
+  const navigatedToInsufficient = useRef(false);
   const guidanceRef = useRef<GuidanceResult | null>(null);
   const intentionalClose = useRef(false);
   const failedRef = useRef(false);
   const speechFallbackTimer = useRef<number | null>(null);
+  const agentHasJoined = useRef(false);
+
+  const openInsufficient = () => {
+    if (navigatedToInsufficient.current || guidanceStored.current) return;
+    navigatedToInsufficient.current = true;
+    intentionalClose.current = true;
+    if (speechFallbackTimer.current != null) {
+      window.clearTimeout(speechFallbackTimer.current);
+      speechFallbackTimer.current = null;
+    }
+    goToInsufficient();
+  };
 
   const openResultsNow = () => {
     if (navigatedToResults.current) return;
@@ -125,11 +145,13 @@ function LiveKitBridge({ room }: { room: Room }) {
       failOnce("agent failed", "service");
       return;
     }
-    // Ignore connecting/idle; only map healthy agent states to voice UI.
-    if (state !== "disconnected") {
-      setVoiceState(mapAgentStateToVoiceState(state));
+    if (state === "disconnected") return;
+
+    if (isAgentTurnState(state)) {
+      agentHasJoined.current = true;
     }
-  }, [failConsultation, setVoiceState, state]);
+    setVoiceState(mapAgentStateToVoiceState(state, agentHasJoined.current));
+  }, [setVoiceState, state]);
 
   useEffect(() => {
     const onDisconnected = () => {
@@ -174,6 +196,26 @@ function LiveKitBridge({ room }: { room: Room }) {
   }, [registerTextSender, sendChat]);
 
   useEffect(() => {
+    registerEndNotifier(async (reason) => {
+      if (reason === "insufficient") {
+        intentionalClose.current = true;
+      }
+      const payload = new TextEncoder().encode(
+        JSON.stringify({ type: "user_ended", reason }),
+      );
+      try {
+        await room.localParticipant.publishData(payload, {
+          reliable: true,
+          topic: CONTROL_TOPIC,
+        });
+      } catch (err) {
+        console.warn("Failed to notify agent of session end:", err);
+      }
+    });
+    return () => registerEndNotifier(null);
+  }, [registerEndNotifier, room]);
+
+  useEffect(() => {
     return () => {
       if (speechFallbackTimer.current != null) {
         window.clearTimeout(speechFallbackTimer.current);
@@ -185,6 +227,11 @@ function LiveKitBridge({ room }: { room: Room }) {
     // Fatal LLM / session failure — show error UI; do not keep the consult looping.
     if (event.phase === "session" && event.status === "error") {
       failOnce(event.message || "service error", "service");
+      return;
+    }
+
+    if (isInsufficientInfoEvent(event)) {
+      openInsufficient();
       return;
     }
 

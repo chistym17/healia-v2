@@ -17,10 +17,12 @@ export function VoiceControls({
 }: VoiceControlsProps) {
   const [text, setText] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
-  const micBlocked = voiceState === "error";
+  const isConnecting = voiceState === "connecting";
+  const micBlocked = voiceState === "error" || isConnecting;
+  const textBlocked = voiceState === "error" || isConnecting;
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || textBlocked) return;
     onSendText(text);
     setText("");
   };
@@ -33,7 +35,7 @@ export function VoiceControls({
           onClick={onToggleMic}
           disabled={micBlocked}
           aria-label={micEnabled ? "Mute microphone" : "Unmute microphone"}
-          className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-healia-brand focus-visible:ring-offset-2 disabled:opacity-50 ${
+          className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-healia-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${
             micEnabled
               ? "bg-healia-brand text-white hover:bg-healia-brand-dark"
               : "bg-healia-danger text-white hover:bg-healia-danger/90"
@@ -47,19 +49,24 @@ export function VoiceControls({
         </button>
 
         <p className="text-xs text-healia-text-muted">
-          {micEnabled ? "Microphone on — speak naturally" : "Microphone muted"}
+          {isConnecting
+            ? "Controls unlock when Healia joins"
+            : micEnabled
+              ? "Microphone on — speak naturally"
+              : "Microphone muted"}
         </p>
 
         <button
           type="button"
           onClick={() => setShowTextInput((v) => !v)}
-          className="text-xs text-healia-text-muted transition-colors hover:text-healia-text-secondary"
+          disabled={isConnecting}
+          className="text-xs text-healia-text-muted transition-colors hover:text-healia-text-secondary disabled:cursor-not-allowed disabled:opacity-40"
         >
           {showTextInput ? "Hide text input" : "Type instead"}
         </button>
       </div>
 
-      {showTextInput && (
+      {showTextInput && !isConnecting && (
         <div className="mt-4 flex gap-2">
           <input
             type="text"
@@ -67,12 +74,13 @@ export function VoiceControls({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Describe your symptoms…"
-            className="flex-1 rounded-lg border border-healia-border bg-healia-bg-secondary px-4 py-2.5 text-sm text-healia-text placeholder:text-healia-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-healia-brand"
+            disabled={textBlocked}
+            className="flex-1 rounded-lg border border-healia-border bg-healia-bg-secondary px-4 py-2.5 text-sm text-healia-text placeholder:text-healia-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-healia-brand disabled:opacity-50"
           />
           <button
             type="button"
             onClick={handleSend}
-            disabled={!text.trim()}
+            disabled={!text.trim() || textBlocked}
             aria-label="Send message"
             className="flex h-10 w-10 items-center justify-center rounded-lg bg-healia-brand text-white transition-colors hover:bg-healia-brand-dark disabled:opacity-50"
           >

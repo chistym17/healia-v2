@@ -5,11 +5,21 @@ import type { VoiceState } from "@/v2/types/consultation";
 import { cn } from "@/lib/utils";
 
 const STATE_LABELS: Record<VoiceState, string> = {
-  ready: "Ready",
-  listening: "Listening",
+  connecting: "Joining",
+  ready: "Connected",
+  listening: "Your turn",
   thinking: "Thinking",
-  speaking: "Speaking",
+  speaking: "Healia is talking",
   error: "Connection error",
+};
+
+const STATE_HINTS: Record<VoiceState, string> = {
+  connecting: "Healia is joining your consultation — please wait",
+  ready: "You're connected. Speak when you're ready",
+  listening: "Go ahead — Healia is listening",
+  thinking: "Understanding what you shared",
+  speaking: "Listen for a moment, then reply when it's your turn",
+  error: "Please try again",
 };
 
 function useTrackLevel(audioTrack: TrackReference | undefined, active: boolean) {
@@ -61,6 +71,28 @@ function useTrackLevel(audioTrack: TrackReference | undefined, active: boolean) 
   return level;
 }
 
+/** Soft elapsed copy while waiting for a cold agent start. */
+function useConnectingElapsed(active: boolean) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setSeconds(0);
+      return;
+    }
+    setSeconds(0);
+    const id = window.setInterval(() => {
+      setSeconds((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+
+  if (!active) return null;
+  if (seconds < 4) return "Setting up your room…";
+  if (seconds < 12) return "Waiting for Healia to join…";
+  return "Almost there — Healia is warming up…";
+}
+
 type SparkOrbProps = {
   state: VoiceState;
   micEnabled?: boolean;
@@ -74,6 +106,7 @@ function SparkOrb({
   audioTrack,
   className,
 }: SparkOrbProps) {
+  const isConnecting = state === "connecting";
   const isSpeaking = state === "speaking";
   const isListening = state === "listening" && micEnabled;
   const isThinking = state === "thinking";
@@ -87,14 +120,13 @@ function SparkOrb({
       className={cn("relative flex h-32 w-32 items-center justify-center", className)}
       aria-hidden="true"
     >
-      {/* Outer spark rings */}
-      {(isSpeaking || isListening || isThinking) && (
+      {(isSpeaking || isListening || isThinking || isConnecting) && (
         <>
           <span
             className={cn(
               "absolute inset-0 rounded-full border border-healia-brand/20",
               isSpeaking && "animate-healia-ring",
-              isListening && "animate-healia-ring-slow",
+              (isListening || isConnecting) && "animate-healia-ring-slow",
               isThinking && "opacity-40",
             )}
             style={
@@ -107,12 +139,12 @@ function SparkOrb({
             className={cn(
               "absolute inset-3 rounded-full border border-healia-brand/15",
               isSpeaking && "animate-healia-ring-delay",
+              isConnecting && "animate-healia-ring-slow opacity-60",
             )}
           />
         </>
       )}
 
-      {/* Soft glow when agent talks */}
       <span
         className="absolute inset-6 rounded-full bg-healia-brand/20 transition-opacity duration-200"
         style={{
@@ -122,7 +154,6 @@ function SparkOrb({
         }}
       />
 
-      {/* Core ball */}
       <div
         className={cn(
           "relative z-10 flex h-20 w-20 items-center justify-center rounded-full transition-all duration-200",
@@ -130,11 +161,10 @@ function SparkOrb({
             ? "bg-healia-danger/15 border border-healia-danger/30"
             : "bg-healia-brand-light border border-healia-brand/25",
           isSpeaking && "shadow-[0_0_24px_rgba(21,94,89,0.28)]",
-          isThinking && "animate-pulse",
+          (isThinking || isConnecting) && "animate-pulse",
         )}
         style={{ transform: `scale(${speakScale})` }}
       >
-        {/* Inner spark flecks while speaking */}
         {isSpeaking && (
           <div className="absolute inset-0 overflow-hidden rounded-full">
             {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -152,7 +182,7 @@ function SparkOrb({
           </div>
         )}
 
-        {isThinking ? (
+        {isThinking || isConnecting ? (
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-healia-brand border-t-transparent" />
         ) : (
           <div
@@ -187,7 +217,6 @@ function LiveAgentOrb({
   micEnabled?: boolean;
 }) {
   const { audioTrack, state: agentState } = useVoiceAssistant();
-  // Prefer LiveKit agent state when available for speaking animation
   const liveState: VoiceState =
     agentState === "speaking"
       ? "speaking"
@@ -195,7 +224,9 @@ function LiveAgentOrb({
         ? "listening"
         : agentState === "thinking"
           ? "thinking"
-          : state;
+          : state === "connecting"
+            ? "connecting"
+            : state;
 
   return (
     <SparkOrb
@@ -206,26 +237,89 @@ function LiveAgentOrb({
   );
 }
 
+function ConnectingSteps({ elapsedHint }: { elapsedHint: string | null }) {
+  const steps = [
+    "Connect to room",
+    "Healia joins",
+    "Greeting starts",
+  ];
+
+  return (
+    <ol className="mt-5 w-full max-w-xs space-y-2 text-left" aria-hidden="true">
+      {steps.map((label, i) => (
+        <li
+          key={label}
+          className="flex items-center gap-2.5 text-xs text-healia-text-secondary"
+        >
+          <span
+            className={cn(
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-medium",
+              i === 0
+                ? "border-healia-brand/40 bg-healia-brand text-white"
+                : i === 1
+                  ? "border-healia-brand/50 bg-healia-brand-light text-healia-brand animate-pulse"
+                  : "border-healia-border text-healia-text-muted",
+            )}
+          >
+            {i + 1}
+          </span>
+          <span className={i === 1 ? "text-healia-brand font-medium" : undefined}>
+            {label}
+          </span>
+        </li>
+      ))}
+      {elapsedHint ? (
+        <li className="pt-1 text-center text-xs text-healia-text-muted">
+          {elapsedHint}
+        </li>
+      ) : null}
+    </ol>
+  );
+}
+
 export function VoiceStateIndicator({
   state,
   micEnabled = true,
   liveAudio = false,
 }: VoiceStateIndicatorProps) {
+  const prevState = useRef(state);
+  const [flashConnected, setFlashConnected] = useState(false);
+  const connectingHint = useConnectingElapsed(state === "connecting");
+
+  useEffect(() => {
+    if (
+      prevState.current === "connecting" &&
+      (state === "speaking" || state === "listening" || state === "ready")
+    ) {
+      setFlashConnected(true);
+      const t = window.setTimeout(() => setFlashConnected(false), 2200);
+      prevState.current = state;
+      return () => window.clearTimeout(t);
+    }
+    prevState.current = state;
+  }, [state]);
+
+  const label =
+    flashConnected && state !== "connecting"
+      ? "Joined"
+      : STATE_LABELS[state];
+
   const hint =
-    state === "error"
-      ? "Please try again"
-      : !micEnabled
-        ? "Microphone is muted"
-        : state === "ready"
-          ? "Speak when you're ready — Healia is connected"
-          : state === "listening"
-            ? "Tell me what you're feeling"
-            : state === "thinking"
-              ? "Understanding your symptoms"
-              : "Healia is responding";
+    !micEnabled && state !== "error" && state !== "connecting"
+      ? "Microphone is muted"
+      : flashConnected && state === "speaking"
+        ? "Healia joined — listen to the greeting"
+        : flashConnected && (state === "listening" || state === "ready")
+          ? "Joined — talk now when you're ready"
+          : STATE_HINTS[state];
 
   return (
-    <div className="flex flex-col items-center py-6 md:py-8">
+    <div
+      className="flex flex-col items-center py-6 md:py-8"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {liveAudio ? (
         <LiveAgentOrb state={state} micEnabled={micEnabled} />
       ) : (
@@ -233,13 +327,20 @@ export function VoiceStateIndicator({
       )}
 
       <p
-        className={`mt-4 text-sm font-medium ${
-          state === "error" ? "text-healia-danger" : "text-healia-brand"
-        }`}
+        className={cn(
+          "mt-4 text-sm font-medium",
+          state === "error" ? "text-healia-danger" : "text-healia-brand",
+        )}
       >
-        {STATE_LABELS[state]}
+        {label}
       </p>
-      <p className="mt-1 text-sm text-healia-text-secondary">{hint}</p>
+      <p className="mt-1 max-w-sm text-center text-sm text-healia-text-secondary">
+        {hint}
+      </p>
+
+      {state === "connecting" ? (
+        <ConnectingSteps elapsedHint={connectingHint} />
+      ) : null}
     </div>
   );
 }
