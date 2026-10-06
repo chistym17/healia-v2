@@ -13,6 +13,12 @@ from livekit_agent.case_package import (
     has_patient_substance,
 )
 from livekit_agent.controller import validate_and_apply
+from livekit_agent.dialogue_guards import (
+    detect_denied_complaints,
+    empty_assessment_evidence,
+    filter_assessment_evidence,
+    should_run_assessment_rag,
+)
 from livekit_agent.events import log_event, log_note
 from livekit_agent.guidance_pipeline import run_knowledge_guidance
 from livekit_agent.pipeline_events import (
@@ -21,7 +27,7 @@ from livekit_agent.pipeline_events import (
 )
 from livekit_agent.speech import speak_decision, speak_guidance
 from livekit_agent.state import ConsultationState
-from livekit_agent.supervisor import run_supervisor
+from livekit_agent.supervisor import SupervisorDecision, run_supervisor
 from livekit_agent.turn_control import TurnCoordinator
 
 if TYPE_CHECKING:
@@ -344,53 +350,95 @@ async def handle_patient_turn(
     )
     started = time.monotonic()
 
+    # Safety net: clear sticky wrong complaints before RAG/supervisor.
+    for denied in detect_denied_complaints(patient_text, state.chief_complaint):
+        state.deny_complaint(denied)
+        log_event(
+            "CTRL",
+            "complaint_denied",
+            session_id=session_id,
+            turn_id=turn_id,
+            detail=f"denied={denied}",
+        )
+
     snap = state.snapshot()
     assessment_evidence = None
     if config.ASSESSMENT_RAG_ENABLED:
-        emit_pipeline_event(
-            session_id=session_id,
-            turn_id=turn_id,
-            phase="assessment_rag",
-            status="started",
-            message="Searching assessment question index",
-            data={"source": "medquad_assessment"},
-        )
-        log_event(
-            "RAG",
-            "retrieval_started",
-            session_id=session_id,
-            turn_id=turn_id,
-            detail="source=medquad_assessment",
-        )
-        # Sync Qdrant/HF must not block the LiveKit audio loop.
-        assessment_evidence = await asyncio.to_thread(
-            assessment_search,
+        run_assessment = should_run_assessment_rag(
             chief_complaint=snap.get("chief_complaint"),
-            known_facts=snap.get("facts") or {},
-            already_asked=snap.get("asked_topics") or [],
             patient_turn=patient_text,
         )
-        assessment_msg, assessment_data = assessment_completed_event(assessment_evidence)
-        emit_pipeline_event(
-            session_id=session_id,
-            turn_id=turn_id,
-            phase="assessment_rag",
-            status="completed",
-            message=assessment_msg,
-            data=assessment_data,
-            elapsed_ms=int((time.monotonic() - started) * 1000),
-        )
-        log_event(
-            "RAG",
-            "retrieval_finished",
-            session_id=session_id,
-            turn_id=turn_id,
-            detail=(
-                f"source={assessment_evidence.get('source')} "
-                f"pack={assessment_evidence.get('pack')} "
-                f"suggestions={len(assessment_evidence.get('suggested_questions') or [])}"
-            ),
-        )
+        if not run_assessment:
+            assessment_evidence = empty_assessment_evidence(
+                reason="no_complaint_or_opener"
+            )
+            emit_pipeline_event(
+                session_id=session_id,
+                turn_id=turn_id,
+                phase="assessment_rag",
+                status="skipped",
+                message="Skipped assessment retrieval — no real complaint yet",
+                data={"skip_reason": "no_complaint_or_opener"},
+                elapsed_ms=int((time.monotonic() - started) * 1000),
+            )
+            log_event(
+                "RAG",
+                "retrieval_skipped",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail="reason=no_complaint_or_opener",
+            )
+        else:
+            emit_pipeline_event(
+                session_id=session_id,
+                turn_id=turn_id,
+                phase="assessment_rag",
+                status="started",
+                message="Searching assessment question index",
+                data={"source": "medquad_assessment"},
+            )
+            log_event(
+                "RAG",
+                "retrieval_started",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail="source=medquad_assessment",
+            )
+            # Sync Qdrant/HF must not block the LiveKit audio loop.
+            assessment_evidence = await asyncio.to_thread(
+                assessment_search,
+                chief_complaint=snap.get("chief_complaint"),
+                known_facts=snap.get("facts") or {},
+                already_asked=snap.get("asked_topics") or [],
+                patient_turn=patient_text,
+            )
+            assessment_evidence = filter_assessment_evidence(
+                assessment_evidence,
+                snap.get("denied_complaints") or [],
+            )
+            assessment_msg, assessment_data = assessment_completed_event(
+                assessment_evidence
+            )
+            emit_pipeline_event(
+                session_id=session_id,
+                turn_id=turn_id,
+                phase="assessment_rag",
+                status="completed",
+                message=assessment_msg,
+                data=assessment_data,
+                elapsed_ms=int((time.monotonic() - started) * 1000),
+            )
+            log_event(
+                "RAG",
+                "retrieval_finished",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail=(
+                    f"source={assessment_evidence.get('source')} "
+                    f"pack={assessment_evidence.get('pack')} "
+                    f"suggestions={len(assessment_evidence.get('suggested_questions') or [])}"
+                ),
+            )
 
     emit_pipeline_event(
         session_id=session_id,
@@ -480,6 +528,41 @@ async def handle_patient_turn(
     )
 
     result = validate_and_apply(state, decision)
+    # If model still asks about a denied complaint, recover with a clean re-ask.
+    if (
+        not result.ok
+        and result.error == "followup mentions denied complaint"
+    ):
+        recovery = SupervisorDecision(
+            action="ask_followup",
+            spoken_utterance=(
+                "Sorry about that — I must have misunderstood. "
+                "What symptom or health concern would you like help with today?"
+            ),
+            allow_light_paraphrase=True,
+            followup_topic="clarify_chief_complaint",
+            state_updates={
+                "clear_chief_complaint": True,
+                "deny_complaints": list(state.denied_complaints),
+            },
+            confidence=1.0,
+            reason="recovery_after_denied_complaint_followup",
+            raw={"recovery": True},
+        )
+        # Avoid duplicate topic rejection on repeated recoveries.
+        if "clarify_chief_complaint" in state.asked_topics:
+            recovery.followup_topic = f"clarify_chief_complaint_{state.followup_count + 1}"
+        result = validate_and_apply(state, recovery)
+        if result.ok:
+            decision = recovery
+            log_event(
+                "CTRL",
+                "decision_recovered",
+                session_id=session_id,
+                turn_id=turn_id,
+                detail="replaced denied-complaint followup",
+            )
+
     validated_ms = int((time.monotonic() - started) * 1000)
     if result.ok:
         log_event(
@@ -506,6 +589,7 @@ async def handle_patient_turn(
                 "phase": state.phase,
                 "followup_count": state.followup_count,
                 "chief_complaint": state.chief_complaint,
+                "denied_complaints": state.denied_complaints,
             },
             elapsed_ms=validated_ms,
         )

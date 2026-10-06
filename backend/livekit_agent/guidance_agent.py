@@ -7,7 +7,8 @@ import re
 from typing import Any
 
 from livekit_agent import config
-from livekit_agent.llm_client import groq_json_completion
+from livekit_agent.events import log_event
+from livekit_agent.llm_client import groq_json_with_text_fallback
 
 _SYSTEM_PROMPT = """
 You are Healia's medical knowledge assistant (backend). You turn retrieved reference
@@ -18,13 +19,12 @@ Rules:
 - Do not prescribe medications, doses, or specific treatment plans.
 - Encourage professional care for serious, worsening, or uncertain symptoms.
 - Cite excerpts inline as [1], [2], etc., matching excerpt numbers.
-- spoken_answer must be natural for voice: 2-3 short sentences, under 60 words.
-- Results sections must be clear, calm, and scannable for a Results page.
+- Keep every field concise. spoken_answer: 2-3 short sentences, under 60 words.
 - possible_concerns must sound uncertain (may be / possible), never a confirmed diagnosis.
-- actions must be practical self-care steps only (no prescriptions or doses).
-- warning_signs and seek_care must be present whenever clinically relevant; otherwise give
-  sensible general advice to seek care if symptoms worsen.
-- Output JSON only, matching this schema exactly:
+- actions: 2-5 practical self-care steps only (no prescriptions or doses).
+- warning_signs and seek_care: short paragraphs when relevant.
+- Reply with a single JSON object only. No markdown fences, no prose outside JSON.
+- Match this schema exactly:
 
 {
   "spoken_answer": "string",
@@ -178,13 +178,24 @@ async def generate_guidance(
         chunks=chunks,
     )
 
-    text = await groq_json_completion(
+    text, mode = await groq_json_with_text_fallback(
         system=_SYSTEM_PROMPT,
         user=user_prompt,
         model=config.GUIDANCE_MODEL,
         temperature=config.GUIDANCE_TEMPERATURE,
         max_tokens=config.GUIDANCE_MAX_OUTPUT_TOKENS,
+        reasoning_effort=config.GUIDANCE_REASONING_EFFORT or "low",
     )
+    if mode == "text_fallback":
+        log_event(
+            "RAG",
+            "guidance_json_fallback",
+            detail=(
+                f"model={config.GUIDANCE_MODEL} "
+                f"max_tokens={config.GUIDANCE_MAX_OUTPUT_TOKENS}"
+            ),
+        )
     parsed = parse_guidance_response(_extract_json(text))
     parsed["error"] = None
+    parsed["generation_mode"] = mode
     return parsed

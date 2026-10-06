@@ -5,7 +5,8 @@ Edit values here while testing. Agent code should only read from this module.
 Env overrides (optional):
   RERANK_ENABLED=true|false  — turn BGE cross-encoder on/off (default true).
                                When false and mode is rerank, falls back to hybrid.
-  SUPERVISOR_MODEL / GUIDANCE_MODEL — Groq model ids (default openai/gpt-oss-20b)
+  SUPERVISOR_MODEL — Groq model id (default openai/gpt-oss-20b)
+  GUIDANCE_MODEL — Groq model id (default openai/gpt-oss-120b)
   GROQ_API_KEY — required for supervisor + guidance text LLM
 """
 
@@ -92,10 +93,19 @@ ASSESSMENT_RAG_ENABLED = True
 KNOWLEDGE_RAG_ENABLED = True
 KNOWLEDGE_RAG_MODE = "rerank"  # faiss | bm25 | hybrid | rerank
 KNOWLEDGE_RAG_TOP_K = 5
-GUIDANCE_MODEL = (os.getenv("GUIDANCE_MODEL") or SUPERVISOR_MODEL).strip()
+GUIDANCE_MODEL = (
+    os.getenv("GUIDANCE_MODEL") or "openai/gpt-oss-120b"
+).strip()
 GUIDANCE_TEMPERATURE = 0.3
-GUIDANCE_MAX_OUTPUT_TOKENS = 1024
-GUIDANCE_TIMEOUT_SEC = float(os.getenv("GUIDANCE_TIMEOUT_SEC") or "20")
+# gpt-oss reasoning tokens count toward max_tokens; keep this high.
+GUIDANCE_MAX_OUTPUT_TOKENS = int(
+    os.getenv("GUIDANCE_MAX_OUTPUT_TOKENS") or "8192"
+)
+# low | medium | high — low leaves budget for the JSON document itself.
+GUIDANCE_REASONING_EFFORT = (
+    os.getenv("GUIDANCE_REASONING_EFFORT") or "low"
+).strip()
+GUIDANCE_TIMEOUT_SEC = float(os.getenv("GUIDANCE_TIMEOUT_SEC") or "45")
 
 
 def _env_bool(name: str, default: bool = True) -> bool:

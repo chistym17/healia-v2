@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from livekit_agent.events import log_event
+from livekit_agent.speech import interrupt_speech
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession
@@ -51,11 +52,7 @@ class TurnCoordinator:
                 detail=f"reason={reason}",
             )
 
-        if session is not None:
-            try:
-                await session.interrupt(force=True)
-            except RuntimeError:
-                pass
+        await interrupt_speech(session, session_id=self.session_id)
 
     async def run_turn(
         self,
